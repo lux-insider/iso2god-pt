@@ -1,0 +1,18 @@
+# Rust
+/target/
+Cargo.lock.bak
+
+
+# Editor/OS
+.vscode/
+.idea/
+*.swp
+.DS_Store
+
+# Saídas de teste locais
+/teste_*/
+*.god/
+
+# Imagens que quebraram o programa durante o fuzzing (ver ferramentas/fuzz)
+/ferramentas/fuzz/achados/
+__pycache__/

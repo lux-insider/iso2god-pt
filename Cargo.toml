@@ -1,0 +1,47 @@
+[package]
+name = "iso2god"
+version = "0.1.1"
+edition = "2024"
+
+[dependencies]
+# CLI: parsing de argumentos e subcomandos
+clap = { version = "4", features = ["derive"] }
+# Erros
+thiserror = "1"
+# Hashes SHA1 usados nas hash tables e no cabeçalho LIVE do container GOD
+sha1 = "0.11.0"
+# MD5: usado só como substituto de Media ID para jogos de Xbox original
+# (XBE), que não têm esse conceito nativo (mesma solução do original)
+md-5 = "0.11.0"
+# Codifica o thumbnail extraído do XBE (decodificado de XPR/DXT1/ARGB) como PNG
+png = "0.18.1"
+# Protocolo de progresso estruturado (--progresso-json), consumido por
+# outros programas sem precisar parsear a barra de terminal
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.151"
+# Embute o PNG do thumbnail no JSON de `info --json`
+base64 = "0.23.1"
+# Interface rica de terminal: largura visível de texto com emoji/acentos, e
+# detecção do tamanho do terminal (barra de progresso, caixas, gradiente)
+unicode-width = "0.2.2"
+terminal_size = "0.4.4"
+# Chamadas de sistema POSIX usadas em `crate::sistema`: `statvfs` (espaço
+# livre no destino, checado ANTES de começar a converter) e `sigaction`
+# (Ctrl+C cancela de forma limpa, apagando a saída incompleta, em vez de
+# matar o processo no meio da escrita)
+libc = "0.2"
+
+# Só no Windows: ligar o suporte a sequências ANSI (cores, apagar linha) e
+# UTF-8 no console. Sem isso o conhost imprime os códigos como texto e
+# quebra as linhas no meio deles.
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.59", features = ["Win32_Foundation", "Win32_Storage_FileSystem", "Win32_System_Console", "Win32_System_LibraryLoader"] }
+
+# Binário pequeno (~1 MB em vez de ~2 MB): otimiza para tamanho, LTO completo,
+# uma unidade de código só, sem tabelas de unwind e sem símbolos.
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true
