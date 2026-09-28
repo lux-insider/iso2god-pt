@@ -82,10 +82,21 @@ impl Gdf {
     /// diretório encontrado. Equivalente a `GDF.ParseDirectory` (chamado com
     /// `recursive: true`) seguido da leitura de `lastSector`.
     pub fn analisar_diretorios(&mut self) -> Resultado<u32> {
-        let mut ultimo_setor = 0u32;
+        // O descritor de volume e a tabela do diretório raiz não aparecem como
+        // entrada em diretório nenhum (só o descritor aponta para a raiz), então
+        // a varredura abaixo nunca os conta. Nada no XDVDFS obriga a raiz a vir
+        // antes dos dados: numa imagem reconstruída ou homebrew ela pode ficar
+        // depois, e o corte "parcial" tirava a raiz do pacote — conversão com
+        // sucesso, cadeia de hash coerente, e um jogo que não abre no console.
+        // Raiz ilegível: não há árvore nenhuma para converter (e o setor dela,
+        // que nem pôde ser lido, não entra na conta).
         let Some(mut raiz) = self.raiz.take() else {
-            return Ok(ultimo_setor);
+            return Ok(0);
         };
+        let setores_raiz = (self.descritor.tamanho_dir_raiz as u64)
+            .div_ceil(self.descritor.tamanho_setor as u64) as u32;
+        let mut ultimo_setor = (SETOR_ASSINATURA as u32 + 1)
+            .max(self.descritor.setor_dir_raiz.saturating_add(setores_raiz));
         let resultado = processar_diretorio(
             &mut raiz,
             &mut self.leitor,
@@ -266,14 +277,15 @@ fn processar_diretorio(
 
         let setores_ocupados =
             (tamanho as u64).div_ceil(descritor.tamanho_setor as u64) as u32;
-        if setor >= *ultimo_setor {
-            // Os dois vêm da imagem, então numa entrada corrompida a soma
-            // estoura o u32: pânico em debug e, pior, em release ela dá a
-            // volta e pode cair num valor pequeno e plausível — que passaria
-            // por `validar_ultimo_setor` e produziria um pacote truncado em
-            // silêncio. Saturar mantém o absurdo visível.
-            *ultimo_setor = setor.saturating_add(setores_ocupados);
-        }
+        // O maior fim entre todas as entradas, em qualquer ordem da árvore
+        // (o original só atualizava quando a entrada começava depois do
+        // máximo atual, o que depende de os dados virem em ordem). Os dois
+        // valores vêm da imagem, então numa entrada corrompida a soma
+        // estoura o u32: pânico em debug e, pior, em release ela dá a volta
+        // e pode cair num valor pequeno e plausível — que passaria por
+        // `validar_ultimo_setor` e produziria um pacote truncado em
+        // silêncio. Saturar mantém o absurdo visível.
+        *ultimo_setor = (*ultimo_setor).max(setor.saturating_add(setores_ocupados));
 
         if !eh_diretorio {
             continue;

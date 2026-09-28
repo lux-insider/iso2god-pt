@@ -40,6 +40,13 @@ fn preencher_ate_setor(b: &mut Vec<u8>) {
 ///     SUBDIR/               (diretório, setor 2000)
 ///       readme.txt          (arquivo, setor 3000, 123 bytes)
 fn criar_iso_teste(nome_arquivo: &str) -> PathBuf {
+    criar_iso_teste_com_raiz(nome_arquivo, 100)
+}
+
+/// O mesmo layout de `criar_iso_teste`, com a tabela da raiz no setor
+/// escolhido — inclusive depois de todos os arquivos, como em imagens
+/// reconstruídas ou homebrew.
+fn criar_iso_teste_com_raiz(nome_arquivo: &str, setor_raiz: u32) -> PathBuf {
     let entrada_xex = montar_entrada(0, 0, 1000, 400_000, 0x00, "default.xex");
     let entrada_subdir = montar_entrada(0, 0, 2000, SETOR as u32, 0x10, "SUBDIR");
     let mut bloco_raiz = Vec::new();
@@ -50,7 +57,6 @@ fn criar_iso_teste(nome_arquivo: &str) -> PathBuf {
     let mut bloco_subdir = montar_entrada(0, 0, 3000, 123, 0x00, "readme.txt");
     preencher_ate_setor(&mut bloco_subdir);
 
-    let setor_raiz: u32 = 100;
     let tamanho_raiz = bloco_raiz.len() as u32;
 
     let mut descritor = Vec::new();
@@ -62,7 +68,7 @@ fn criar_iso_teste(nome_arquivo: &str) -> PathBuf {
     let caminho = std::env::temp_dir().join(nome_arquivo);
     let mut f = File::create(&caminho).expect("criar arquivo de teste");
 
-    f.set_len(BASE_ASSINATURA + DESLOCAMENTO_XGD3 + 65536)
+    f.set_len((DESLOCAMENTO_XGD3 + (setor_raiz as u64 + 1) * SETOR).max(BASE_ASSINATURA + DESLOCAMENTO_XGD3 + 65536))
         .expect("truncar arquivo de teste");
 
     f.seek(SeekFrom::Start(BASE_ASSINATURA + DESLOCAMENTO_XGD3)).unwrap();
@@ -139,6 +145,23 @@ fn analisar_diretorios_encontra_ultimo_setor_recursivamente() {
     // É o maior entre todas as entradas (raiz, xex, subdir, readme).
     let ultimo_setor = g.analisar_diretorios().expect("analisar diretórios");
     assert_eq!(ultimo_setor, 3001);
+
+    std::fs::remove_file(&caminho).ok();
+}
+
+/// Regressão: a tabela da raiz não é entrada de diretório nenhum, então a
+/// varredura não a contava. Com a raiz depois dos arquivos (imagem
+/// reconstruída), o corte "parcial" deixava a raiz fora do pacote GOD e o
+/// jogo não abria no console — sem erro nenhum na conversão.
+#[test]
+fn analisar_diretorios_conta_a_tabela_da_raiz_depois_dos_arquivos() {
+    let caminho = criar_iso_teste_com_raiz("iso2god_teste_raiz_no_fim.iso", 5000);
+    let mut g = gdf::Gdf::abrir(&caminho).expect("abrir GDF de teste");
+
+    // readme.txt termina no setor 3001; a raiz ocupa o setor 5000 inteiro.
+    let ultimo_setor = g.analisar_diretorios().expect("analisar diretórios");
+    assert_eq!(ultimo_setor, 5001);
+    g.validar_ultimo_setor(ultimo_setor).expect("a raiz cabe no volume");
 
     std::fs::remove_file(&caminho).ok();
 }

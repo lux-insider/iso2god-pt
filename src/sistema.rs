@@ -9,10 +9,9 @@
 //!   a saída incompleta. Sem isso, o Ctrl+C mata o processo no meio de uma
 //!   escrita e deixa lixo que parece um pacote válido.
 //!
-//! No Windows o espaço livre vem de `GetDiskFreeSpaceExW`; o cancelamento
-//! limpo ainda não existe lá — o Ctrl+C volta a ser o do sistema. Em outros
-//! sistemas `espaco_livre` devolve `None` (o chamador trata como "não sei
-//! dizer" e segue em frente).
+//! No Windows o espaço livre vem de `GetDiskFreeSpaceExW` e o cancelamento de
+//! `SetConsoleCtrlHandler`. Em outros sistemas `espaco_livre` devolve `None`
+//! (o chamador trata como "não sei dizer" e segue em frente).
 
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -52,22 +51,59 @@ extern "C" fn tratar_sigint(_sinal: libc::c_int) {
     }
 }
 
-/// Instala o handler de Ctrl+C. Deliberadamente **sem** `SA_RESTART`: assim
-/// um `read` bloqueado num prompt do assistente devolve `EINTR` em vez de
-/// ser reiniciado silenciosamente, e quem estiver esperando entrada percebe
-/// o cancelamento na hora.
+/// SIGTERM é o pedido educado de outro programa para encerrar (ex.: o
+/// xiso-manager, depois de um Ctrl+C, ou um `kill` sem opção). Ele cancela do
+/// mesmo jeito limpo, mas **nunca** vira a saída imediata do segundo Ctrl+C:
+/// quem manda SIGTERM logo depois de um SIGINT quer que a limpeza termine,
+/// não que ela seja interrompida no meio e deixe um GOD pela metade.
+#[cfg(unix)]
+extern "C" fn tratar_sigterm(_sinal: libc::c_int) {
+    CANCELADO.store(true, Ordering::SeqCst);
+}
+
+/// Instala os handlers de Ctrl+C (SIGINT) e SIGTERM. Deliberadamente **sem**
+/// `SA_RESTART`: assim um `read` bloqueado num prompt do assistente devolve
+/// `EINTR` em vez de ser reiniciado silenciosamente, e quem estiver esperando
+/// entrada percebe o cancelamento na hora.
 #[cfg(unix)]
 pub fn instalar_cancelamento() {
+    unsafe fn instalar(sinal: libc::c_int, tratador: extern "C" fn(libc::c_int)) {
+        unsafe {
+            let mut acao: libc::sigaction = std::mem::zeroed();
+            acao.sa_sigaction = tratador as *const () as usize;
+            acao.sa_flags = 0;
+            libc::sigemptyset(&mut acao.sa_mask);
+            libc::sigaction(sinal, &acao, std::ptr::null_mut());
+        }
+    }
     unsafe {
-        let mut acao: libc::sigaction = std::mem::zeroed();
-        acao.sa_sigaction = tratar_sigint as *const () as usize;
-        acao.sa_flags = 0;
-        libc::sigemptyset(&mut acao.sa_mask);
-        libc::sigaction(libc::SIGINT, &acao, std::ptr::null_mut());
+        instalar(libc::SIGINT, tratar_sigint);
+        instalar(libc::SIGTERM, tratar_sigterm);
     }
 }
 
-#[cfg(not(unix))]
+/// No Windows, Ctrl+C e Ctrl+Break chegam por `SetConsoleCtrlHandler`. Mesma
+/// regra do Linux: o primeiro marca o cancelamento (a conversão para no
+/// próximo bloco e apaga a saída incompleta); o segundo devolve `FALSE` e o
+/// sistema encerra o processo na hora, para quem não quer esperar.
+#[cfg(windows)]
+unsafe extern "system" fn tratar_console(tipo: u32) -> windows_sys::Win32::Foundation::BOOL {
+    use windows_sys::Win32::System::Console::{CTRL_BREAK_EVENT, CTRL_C_EVENT};
+    if tipo != CTRL_C_EVENT && tipo != CTRL_BREAK_EVENT {
+        return 0;
+    }
+    if CANCELADO.swap(true, Ordering::SeqCst) { 0 } else { 1 }
+}
+
+#[cfg(windows)]
+pub fn instalar_cancelamento() {
+    use windows_sys::Win32::System::Console::SetConsoleCtrlHandler;
+    unsafe {
+        SetConsoleCtrlHandler(Some(tratar_console), 1);
+    }
+}
+
+#[cfg(not(any(unix, windows)))]
 pub fn instalar_cancelamento() {}
 
 /// Espaço livre, em bytes, disponível para um usuário comum no sistema de

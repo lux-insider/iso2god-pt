@@ -115,14 +115,13 @@ fn mostrar_menu(tema: &Tema) {
     // quantas threads faz sentido pedir, e se há espaço para o pacote.
     let nucleos = std::thread::available_parallelism().map(|n| n.get()).unwrap_or(1);
     let mut estado = tema.ponto_status(true, &format!("{nucleos} núcleo(s)"));
-    if let Some(casa) = crate::terminal::pasta_pessoal() {
-        if let Some(livre) = sistema::espaco_livre(&casa) {
+    if let Some(casa) = crate::terminal::pasta_pessoal()
+        && let Some(livre) = sistema::espaco_livre(&casa) {
             estado.push_str(&tema.ponto_status(
                 true,
                 &format!("{} livres em {}", fmt_bytes(livre), encurtar_home(&casa)),
             ));
         }
-    }
     println!("\n{estado}\n");
     println!("{}", tema.regua_gradiente(LARGURA));
 
@@ -334,7 +333,7 @@ fn expandir_til(caminho: &str) -> PathBuf {
     let Some(home) = crate::terminal::pasta_pessoal() else {
         return PathBuf::from(caminho);
     };
-    let mut expandido = PathBuf::from(home);
+    let mut expandido = home;
     if let Some(relativo) = resto.strip_prefix('/')
         && !relativo.is_empty()
     {

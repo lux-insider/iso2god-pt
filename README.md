@@ -36,9 +36,11 @@ como referência.
 - Verificações antes de escrever qualquer byte: a imagem é mesmo de
   Xbox/Xbox 360, a pasta de destino aceita escrita, e há espaço livre para o
   pacote (a conversão é recusada de cara em vez de falhar a 90% do caminho).
-- Ctrl+C cancela de forma limpa (Linux): a conversão para num ponto conhecido e a
-  saída incompleta é descartada, em vez de ficar uma pasta pela metade com
-  cara de pacote pronto. O mesmo vale para qualquer falha no meio.
+- Ctrl+C cancela de forma limpa (Linux e Windows): a conversão para num ponto
+  conhecido e a saída incompleta é descartada, em vez de ficar uma pasta pela
+  metade com cara de pacote pronto. No Linux, o SIGTERM (o pedido de outro
+  programa para encerrar) faz o mesmo. Um segundo Ctrl+C sai na hora. O mesmo
+  vale para qualquer falha no meio.
 
 ## Instalação / build
 
@@ -66,8 +68,8 @@ cp target/release/iso2god ~/.local/bin/
 O `iso2god.exe` da página de Releases roda no Windows 10/11 (64 bits) sem
 instalar nada. No Windows Terminal aparece com cores e emoji; no console
 clássico (cmd e PowerShell antigos) aparece com cores e símbolos simples no
-lugar dos emoji, que ele não desenha. No Windows o Ctrl+C encerra na hora —
-o cancelamento limpo ainda é só no Linux.
+lugar dos emoji, que ele não desenha. O Ctrl+C cancela de forma limpa também
+no Windows.
 
 Para gerar o `.exe` a partir do Linux:
 
