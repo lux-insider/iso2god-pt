@@ -804,27 +804,38 @@ fn processar_faixa(
 ) -> Resultado<()> {
     let mut origem = File::open(caminho_origem)?;
     let mut saida = OpenOptions::new().write(true).open(caminho_parte)?;
-    let mut buffer = vec![0u8; hashtable::TAMANHO_BLOCO as usize];
+    let tamanho_bloco = hashtable::TAMANHO_BLOCO as usize;
+    let mut buffer = vec![0u8; BLOCOS_POR_SHT as usize * tamanho_bloco];
 
-    for indice_local in inicio_local..fim_local {
-        // Um `load` atômico a cada 4 KiB lidos é ruído perto do I/O, e é o
-        // que permite ao Ctrl+C parar num ponto conhecido em vez de matar o
-        // processo no meio de uma escrita.
+    // Os blocos de um mesmo grupo (os até 204 que vêm depois de uma Sub Hash
+    // Table) são contíguos na origem E na parte de saída: lê e grava o grupo
+    // inteiro de uma vez, em vez de um seek+read+seek+write por bloco de
+    // 4 KiB. Mesmo resultado byte a byte, com ~200x menos chamadas ao sistema.
+    let mut indice_local = inicio_local;
+    while indice_local < fim_local {
+        // Consultado a cada grupo (no máximo 816 KiB de I/O): é o que permite
+        // ao Ctrl+C parar num ponto conhecido em vez de matar o processo no
+        // meio de uma escrita.
         if sistema::cancelado() {
             return Err(Erro::Cancelado);
         }
+        let fim_do_grupo = (indice_local / BLOCOS_POR_SHT + 1) * BLOCOS_POR_SHT;
+        let n = (fim_do_grupo.min(fim_local) - indice_local) as usize;
+        let trecho = &mut buffer[..n * tamanho_bloco];
+
         let indice_global = indice_global_inicial + indice_local;
         origem.seek(SeekFrom::Start(
             deslocamento_raiz + indice_global as u64 * hashtable::TAMANHO_BLOCO as u64,
         ))?;
-        ler_bloco(&mut origem, &mut buffer)?;
-
-        let hash = hashtable::sha1(&buffer);
+        ler_bloco(&mut origem, trecho)?;
 
         saida.seek(SeekFrom::Start(offset_bloco_na_parte(indice_local)))?;
-        saida.write_all(&buffer)?;
+        saida.write_all(trecho)?;
 
-        tx.send(Ok((indice_local, hash))).ok();
+        for (k, bloco) in trecho.chunks_exact(tamanho_bloco).enumerate() {
+            tx.send(Ok((indice_local + k as u32, hashtable::sha1(bloco)))).ok();
+        }
+        indice_local += n as u32;
     }
 
     Ok(())
@@ -863,10 +874,10 @@ fn montar_e_escrever_hashtables(
     Ok(())
 }
 
-/// Lê um bloco de 4096 bytes de `origem` (já posicionado) para dentro de
-/// `buffer` (que já tem esse tamanho). Se o arquivo acabar antes de
-/// preencher o buffer todo — só deve acontecer no último bloco físico do
-/// arquivo —, o restante é preenchido com zero, replicando o comportamento
+/// Enche `buffer` (um ou mais blocos de 4096 bytes) lendo de `origem` (já
+/// posicionado). Se o arquivo acabar antes de preencher o buffer todo — só
+/// acontece nos últimos blocos físicos do arquivo —, o restante é preenchido
+/// com zero, replicando o comportamento
 /// do original (que sempre aloca um array novo, já zerado, e ignora quantos
 /// bytes o `Read` efetivamente devolveu).
 fn ler_bloco(origem: &mut File, buffer: &mut [u8]) -> Resultado<()> {
