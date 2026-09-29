@@ -71,10 +71,9 @@ pub struct ArgsConverter {
     pub media_id: Option<String>,
 
     /// Nome de exibição do jogo, gravado no cabeçalho LIVE. Se omitido, usa
-    /// o nome embutido no certificado do default.xbe (Xbox original) quando
-    /// disponível, senão o nome do arquivo da ISO (sem extensão) — o nome
-    /// de exibição de jogos de Xbox 360 fica em um recurso XDBF separado
-    /// que ainda não foi portado.
+    /// o nome do próprio jogo — do certificado do default.xbe (Xbox original)
+    /// ou do recurso XDBF do default.xex (Xbox 360) —, e só se ele não puder
+    /// ser lido, o nome do arquivo da ISO (sem extensão).
     #[arg(long)]
     pub titulo: Option<String>,
 
@@ -100,10 +99,9 @@ pub struct ArgsConverter {
     pub tipo_executavel_byte: Option<u8>,
 
     /// Caminho para uma imagem PNG a ser usada como ícone/thumbnail do jogo.
-    /// Se omitido, é extraído automaticamente do default.xbe (Xbox
-    /// original, seção "$$XSIMAGE"/"$$XTIMAGE" em formato XPR/DXT1 ou ARGB).
-    /// Para Xbox 360 (default.xex), o thumbnail fica num recurso XDBF
-    /// separado que ainda não foi portado — informe manualmente se quiser um.
+    /// Se omitido, é extraído automaticamente: do default.xbe (Xbox original,
+    /// seção "$$XSIMAGE"/"$$XTIMAGE" em XPR/DXT1 ou ARGB) ou do recurso XDBF
+    /// do default.xex (Xbox 360, o ícone do título em PNG).
     #[arg(long)]
     pub icone: Option<PathBuf>,
 }

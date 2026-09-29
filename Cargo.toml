@@ -1,6 +1,6 @@
 [package]
 name = "iso2god"
-version = "0.1.2"
+version = "0.1.3"
 edition = "2024"
 
 [dependencies]
@@ -30,6 +30,8 @@ terminal_size = "0.4.4"
 # (Ctrl+C cancela de forma limpa, apagando a saída incompleta, em vez de
 # matar o processo no meio da escrita)
 libc = "0.2"
+aes = "0.8"
+lzxd = "0.2"
 
 # Só no Windows: ligar o suporte a sequências ANSI (cores, apagar linha) e
 # UTF-8 no console. Sem isso o conhost imprime os códigos como texto e
@@ -45,3 +47,6 @@ lto = true
 codegen-units = 1
 panic = "abort"
 strip = true
+
+[dev-dependencies]
+lzxc = "0.1"

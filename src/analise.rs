@@ -73,6 +73,13 @@ pub fn analisar(origem: &Path) -> Resultado<InfoIso> {
             info.media_id = Some(exec.media_id_hex());
             info.disco = Some(exec.disco_numero);
             info.total_discos = Some(exec.disco_total);
+            if let Ok(t) = xex::ler_titulo(&bytes) {
+                info.titulo = t.titulo;
+                if let Some(png) = t.icone_png {
+                    use base64::Engine;
+                    info.thumbnail_png_base64 = Some(base64::engine::general_purpose::STANDARD.encode(&png));
+                }
+            }
         }
     } else if contem_xbe {
         info.plataforma_detectada = Some("xbox");

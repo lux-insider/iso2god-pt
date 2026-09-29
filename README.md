@@ -16,6 +16,10 @@ como referência.
 - Detecção automática da plataforma (Xbox Original via `default.xbe` / Xbox
   360 via `default.xex`) — Title ID, Media ID, título e número de disco lidos
   direto da imagem.
+- **Nome e ícone dos jogos de Xbox 360**: o `default.xex` é decifrado (AES) e
+  descomprimido (básica ou LZX), e o recurso XDBF do jogo dá o nome oficial,
+  no idioma padrão do jogo, e o ícone em PNG — o que o painel do console
+  mostra. Sem isso, o jogo aparecia com o nome do arquivo e sem ícone.
 - Extração e conversão do thumbnail do jogo (XPR/DXT1 e ARGB) para PNG, no
   caso de Xbox Original.
 - Três estratégias de padding: nenhuma remoção, remoção parcial (padrão) ou

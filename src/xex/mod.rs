@@ -1,4 +1,15 @@
+pub mod recursos;
+pub mod xdbf;
+
 use crate::erro::{Erro, Resultado};
+
+/// Nome de exibição e ícone de um jogo de Xbox 360: o recurso XDBF com o nome
+/// do Title ID, dentro da imagem (cifrada e comprimida) do `default.xex`.
+pub fn ler_titulo(xex: &[u8]) -> Resultado<xdbf::TituloXdbf> {
+    let info = ler_info_execucao(xex)?;
+    let recurso = recursos::extrair_recurso(xex, &info.title_id_hex())?;
+    xdbf::ler(&recurso)
+}
 
 /// Assinatura no início de todo arquivo XEX2 válido.
 const ASSINATURA_XEX2: &[u8; 4] = b"XEX2";

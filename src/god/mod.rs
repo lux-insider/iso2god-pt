@@ -226,9 +226,9 @@ struct MetadadosDetectados {
 
 /// Lê e interpreta o `default.xex`, tolerando qualquer falha (arquivo
 /// ilegível, cabeçalho inesperado, etc.) devolvendo campos em falta como
-/// `None` em vez de abortar a conversão. Equivalente a `IsoDetails.readXex`,
-/// restrito aos campos usados no cabeçalho LIVE (não ao nome de exibição
-/// nem à thumbnail, que vêm de um recurso XDBF separado e não portado).
+/// `None` em vez de abortar a conversão. Equivalente a `IsoDetails.readXex`:
+/// Title ID, Media ID e disco vêm do cabeçalho do XEX; o nome de exibição e o
+/// ícone, do recurso XDBF dentro da imagem (ver `xex::ler_titulo`).
 fn detectar_do_xex(gdf: &mut Gdf) -> MetadadosDetectados {
     let bytes = match gdf.ler_arquivo("default.xex") {
         Ok(bytes) => bytes,
@@ -245,15 +245,39 @@ fn detectar_do_xex(gdf: &mut Gdf) -> MetadadosDetectados {
         }
     };
 
+    // Nome e ícone são cortesia: sem eles a conversão segue com o nome do
+    // arquivo e sem ícone, como antes.
+    let (titulo, icone) = match xex::ler_titulo(&bytes) {
+        Ok(t) => {
+            let icone = match t.icone_png {
+                Some(png) if png.len() > cabecalho::MAX_ICONE => {
+                    eprintln!(
+                        "aviso: o ícone do jogo tem {} e não cabe no cabeçalho (máximo {}); \
+                         seguindo sem ícone",
+                        fmt_bytes(png.len() as u64),
+                        fmt_bytes(cabecalho::MAX_ICONE as u64)
+                    );
+                    None
+                }
+                outro => outro,
+            };
+            (t.titulo, icone)
+        }
+        Err(e) => {
+            eprintln!("aviso: não foi possível ler o nome e o ícone do jogo: {e}");
+            (None, None)
+        }
+    };
+
     MetadadosDetectados {
         title_id_hex: Some(info.title_id_hex()),
         media_id_hex: Some(info.media_id_hex()),
-        titulo: None, // nome de exibição vem de um recurso XDBF, não portado
+        titulo,
         disco_numero: Some(info.disco_numero),
         disco_total: Some(info.disco_total),
         plataforma_byte: Some(info.plataforma),
         tipo_executavel_byte: Some(info.tipo_executavel),
-        icone: None, // thumbnail também vem de um recurso XDBF, não portado
+        icone,
     }
 }
 
@@ -318,8 +342,7 @@ fn detectar_do_xbe(gdf: &mut Gdf) -> MetadadosDetectados {
 
 /// Deriva um título de exibição a partir do nome do arquivo da ISO (sem
 /// extensão), usado quando `--titulo` não é informado e o nome de exibição
-/// "de verdade" (que viria de um recurso XDBF separado, não portado nesta
-/// fase) não está disponível.
+/// do próprio jogo (certificado do XBE ou XDBF do XEX) não pôde ser lido.
 fn nome_a_partir_do_arquivo(origem: &Path) -> String {
     origem
         .file_stem()
