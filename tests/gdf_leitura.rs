@@ -12,7 +12,14 @@ const DESLOCAMENTO_XGD3: u64 = 34_078_720;
 const ASSINATURA: &[u8] = b"MICROSOFT*XBOX*MEDIA";
 
 /// Monta os bytes de uma entrada de diretório GDF já alinhada a 4 bytes.
-fn montar_entrada(subtree_l: u16, subtree_r: u16, setor: u32, tamanho: u32, attrib: u8, nome: &str) -> Vec<u8> {
+fn montar_entrada(
+    subtree_l: u16,
+    subtree_r: u16,
+    setor: u32,
+    tamanho: u32,
+    attrib: u8,
+    nome: &str,
+) -> Vec<u8> {
     let mut b = Vec::new();
     b.extend_from_slice(&subtree_l.to_le_bytes());
     b.extend_from_slice(&subtree_r.to_le_bytes());
@@ -68,16 +75,24 @@ fn criar_iso_teste_com_raiz(nome_arquivo: &str, setor_raiz: u32) -> PathBuf {
     let caminho = std::env::temp_dir().join(nome_arquivo);
     let mut f = File::create(&caminho).expect("criar arquivo de teste");
 
-    f.set_len((DESLOCAMENTO_XGD3 + (setor_raiz as u64 + 1) * SETOR).max(BASE_ASSINATURA + DESLOCAMENTO_XGD3 + 65536))
-        .expect("truncar arquivo de teste");
+    f.set_len(
+        (DESLOCAMENTO_XGD3 + (setor_raiz as u64 + 1) * SETOR)
+            .max(BASE_ASSINATURA + DESLOCAMENTO_XGD3 + 65536),
+    )
+    .expect("truncar arquivo de teste");
 
-    f.seek(SeekFrom::Start(BASE_ASSINATURA + DESLOCAMENTO_XGD3)).unwrap();
+    f.seek(SeekFrom::Start(BASE_ASSINATURA + DESLOCAMENTO_XGD3))
+        .unwrap();
     f.write_all(&descritor).unwrap();
 
-    f.seek(SeekFrom::Start(DESLOCAMENTO_XGD3 + setor_raiz as u64 * SETOR)).unwrap();
+    f.seek(SeekFrom::Start(
+        DESLOCAMENTO_XGD3 + setor_raiz as u64 * SETOR,
+    ))
+    .unwrap();
     f.write_all(&bloco_raiz).unwrap();
 
-    f.seek(SeekFrom::Start(DESLOCAMENTO_XGD3 + 2000 * SETOR)).unwrap();
+    f.seek(SeekFrom::Start(DESLOCAMENTO_XGD3 + 2000 * SETOR))
+        .unwrap();
     f.write_all(&bloco_subdir).unwrap();
 
     caminho
@@ -102,10 +117,16 @@ fn le_entradas_da_raiz() {
     let caminho = criar_iso_teste("iso2god_teste_raiz.iso");
     let g = gdf::Gdf::abrir(&caminho).expect("abrir GDF de teste");
 
-    let raiz = g.raiz.as_ref().expect("diretório raiz deveria ter sido lido");
+    let raiz = g
+        .raiz
+        .as_ref()
+        .expect("diretório raiz deveria ter sido lido");
     assert_eq!(raiz.entradas.len(), 2);
     assert!(raiz.encontrar("default.xex").is_some());
-    assert!(raiz.encontrar("DEFAULT.XEX").is_some(), "busca deve ignorar maiúsculas/minúsculas");
+    assert!(
+        raiz.encontrar("DEFAULT.XEX").is_some(),
+        "busca deve ignorar maiúsculas/minúsculas"
+    );
     assert!(raiz.encontrar("subdir").unwrap().eh_diretorio());
 
     std::fs::remove_file(&caminho).ok();
@@ -161,7 +182,8 @@ fn analisar_diretorios_conta_a_tabela_da_raiz_depois_dos_arquivos() {
     // readme.txt termina no setor 3001; a raiz ocupa o setor 5000 inteiro.
     let ultimo_setor = g.analisar_diretorios().expect("analisar diretórios");
     assert_eq!(ultimo_setor, 5001);
-    g.validar_ultimo_setor(ultimo_setor).expect("a raiz cabe no volume");
+    g.validar_ultimo_setor(ultimo_setor)
+        .expect("a raiz cabe no volume");
 
     std::fs::remove_file(&caminho).ok();
 }
@@ -177,8 +199,7 @@ fn analisar_diretorios_conta_a_tabela_da_raiz_depois_dos_arquivos() {
 fn analisar_diretorios_tolera_subdiretorio_com_tamanho_alem_do_fim_do_arquivo() {
     let entrada_xex = montar_entrada(0, 0, 1000, 400_000, 0x00, "default.xex");
     // Declara um tamanho bem maior do que o arquivo realmente vai ter.
-    let entrada_subdir_corrompida =
-        montar_entrada(0, 0, 2000, 50 * SETOR as u32, 0x10, "SUBDIR");
+    let entrada_subdir_corrompida = montar_entrada(0, 0, 2000, 50 * SETOR as u32, 0x10, "SUBDIR");
     let mut bloco_raiz = Vec::new();
     bloco_raiz.extend(entrada_xex);
     bloco_raiz.extend(entrada_subdir_corrompida);
@@ -200,10 +221,14 @@ fn analisar_diretorios_tolera_subdiretorio_com_tamanho_alem_do_fim_do_arquivo() 
     // menos que os 50 setores (102400 bytes) que ele declara ter.
     f.set_len(DESLOCAMENTO_XGD3 + 2000 * SETOR + 100).unwrap();
 
-    f.seek(SeekFrom::Start(BASE_ASSINATURA + DESLOCAMENTO_XGD3)).unwrap();
+    f.seek(SeekFrom::Start(BASE_ASSINATURA + DESLOCAMENTO_XGD3))
+        .unwrap();
     f.write_all(&descritor).unwrap();
 
-    f.seek(SeekFrom::Start(DESLOCAMENTO_XGD3 + setor_raiz as u64 * SETOR)).unwrap();
+    f.seek(SeekFrom::Start(
+        DESLOCAMENTO_XGD3 + setor_raiz as u64 * SETOR,
+    ))
+    .unwrap();
     f.write_all(&bloco_raiz).unwrap();
 
     let mut g = gdf::Gdf::abrir(&caminho).expect("abrir GDF de teste");

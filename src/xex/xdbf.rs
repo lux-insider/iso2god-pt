@@ -26,13 +26,19 @@ pub struct TituloXdbf {
 }
 
 fn u16_be(d: &[u8], p: usize) -> Option<u16> {
-    Some(u16::from_be_bytes(d.get(p..p.checked_add(2)?)?.try_into().ok()?))
+    Some(u16::from_be_bytes(
+        d.get(p..p.checked_add(2)?)?.try_into().ok()?,
+    ))
 }
 fn u32_be(d: &[u8], p: usize) -> Option<u32> {
-    Some(u32::from_be_bytes(d.get(p..p.checked_add(4)?)?.try_into().ok()?))
+    Some(u32::from_be_bytes(
+        d.get(p..p.checked_add(4)?)?.try_into().ok()?,
+    ))
 }
 fn u64_be(d: &[u8], p: usize) -> Option<u64> {
-    Some(u64::from_be_bytes(d.get(p..p.checked_add(8)?)?.try_into().ok()?))
+    Some(u64::from_be_bytes(
+        d.get(p..p.checked_add(8)?)?.try_into().ok()?,
+    ))
 }
 
 fn invalido(o_que: &str) -> Erro {
@@ -76,7 +82,9 @@ pub fn ler(xdbf: &[u8]) -> Resultado<TituloXdbf> {
 
     let titulo = [idioma_padrao, IDIOMA_INGLES]
         .iter()
-        .find_map(|&idioma| entrada(NS_TEXTOS, idioma).and_then(|b| texto_xstr(b, ID_TITULO as u16)))
+        .find_map(|&idioma| {
+            entrada(NS_TEXTOS, idioma).and_then(|b| texto_xstr(b, ID_TITULO as u16))
+        })
         .map(|t| t.trim().to_string())
         .filter(|t| !t.is_empty());
 
@@ -128,14 +136,23 @@ pub(crate) mod testes {
 
     /// XDBF de teste com o nome em inglês e japonês, idioma padrão
     /// `padrao` e, opcionalmente, um ícone.
-    pub(crate) fn montar_xdbf(ingles: &str, japones: &str, padrao: u32, icone: Option<&[u8]>) -> Vec<u8> {
+    pub(crate) fn montar_xdbf(
+        ingles: &str,
+        japones: &str,
+        padrao: u32,
+        icone: Option<&[u8]>,
+    ) -> Vec<u8> {
         let mut xstc = b"XSTC".to_vec();
         xstc.extend_from_slice(&1u32.to_be_bytes());
         xstc.extend_from_slice(&4u32.to_be_bytes());
         xstc.extend_from_slice(&padrao.to_be_bytes());
         let mut blobs: Vec<(u16, u64, Vec<u8>)> = vec![
             (NS_METADADOS, ID_XSTC, xstc),
-            (NS_TEXTOS, 1, xstr(&[(0x0001, "outro texto"), (0x8000, ingles)])),
+            (
+                NS_TEXTOS,
+                1,
+                xstr(&[(0x0001, "outro texto"), (0x8000, ingles)]),
+            ),
             (NS_TEXTOS, 2, xstr(&[(0x8000, japones)])),
         ];
         if let Some(png) = icone {

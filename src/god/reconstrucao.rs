@@ -15,8 +15,8 @@ use std::io::{Read, Seek, SeekFrom, Write};
 use std::path::Path;
 
 use crate::erro::{Erro, Resultado};
-use crate::gdf::diretorio::TabelaDiretorio;
 use crate::gdf::Gdf;
+use crate::gdf::diretorio::TabelaDiretorio;
 
 /// Tamanho de setor da GDF (fixo, não confundir com o "bloco" de 4096 bytes
 /// do container GOD).
@@ -48,10 +48,7 @@ const PVD_ISO9660: &[u8; 2055] = include_bytes!("pvd_iso9660.bin");
 pub fn reconstruir(gdf: &mut Gdf, origem: &Path, destino: &Path) -> Resultado<()> {
     gdf.analisar_diretorios()?;
 
-    let raiz_original = gdf
-        .raiz
-        .clone()
-        .ok_or(Erro::GdfNaoEncontrada)?;
+    let raiz_original = gdf.raiz.clone().ok_or(Erro::GdfNaoEncontrada)?;
     let mut raiz_nova = raiz_original.clone();
 
     let mut proximo_setor = SETOR_INICIAL_LIVRE;
@@ -131,7 +128,9 @@ fn remapear_arquivos(tabela: &mut TabelaDiretorio, proximo_setor: &mut u32) {
         *proximo_setor += tamanho_para_setores(entrada.tamanho);
     }
     for entrada in tabela.entradas.iter_mut() {
-        if entrada.eh_diretorio() && let Some(sub) = entrada.subdiretorio.as_mut() {
+        if entrada.eh_diretorio()
+            && let Some(sub) = entrada.subdiretorio.as_mut()
+        {
             remapear_arquivos(sub, proximo_setor);
         }
     }
@@ -175,7 +174,9 @@ fn escrever_tabelas(saida: &mut File, tabela: &TabelaDiretorio) -> Resultado<()>
     saida.write_all(&tabela.para_bytes()?)?;
 
     for entrada in &tabela.entradas {
-        if entrada.eh_diretorio() && let Some(sub) = &entrada.subdiretorio {
+        if entrada.eh_diretorio()
+            && let Some(sub) = &entrada.subdiretorio
+        {
             escrever_tabelas(saida, sub)?;
         }
     }
@@ -199,12 +200,14 @@ fn escrever_arquivos(
         if entrada_nova.eh_diretorio() {
             continue;
         }
-        let entrada_original = tabela_original.encontrar(&entrada_nova.nome).ok_or_else(|| {
-            Erro::IsoInvalida(format!(
-                "entrada '{}' não encontrada na árvore original durante a reconstrução",
-                entrada_nova.nome
-            ))
-        })?;
+        let entrada_original = tabela_original
+            .encontrar(&entrada_nova.nome)
+            .ok_or_else(|| {
+                Erro::IsoInvalida(format!(
+                    "entrada '{}' não encontrada na árvore original durante a reconstrução",
+                    entrada_nova.nome
+                ))
+            })?;
 
         copiar_arquivo(
             saida,
@@ -232,7 +235,13 @@ fn escrever_arquivos(
                     entrada_nova.nome
                 ))
             })?;
-        escrever_arquivos(saida, origem, deslocamento_raiz_origem, sub_original, sub_nova)?;
+        escrever_arquivos(
+            saida,
+            origem,
+            deslocamento_raiz_origem,
+            sub_original,
+            sub_nova,
+        )?;
     }
 
     Ok(())
@@ -299,8 +308,8 @@ fn escrever_tamanhos_finais(saida: &mut File) -> Resultado<()> {
 #[cfg(test)]
 mod testes {
     use super::*;
-    use crate::gdf::volume::TipoIso;
     use crate::gdf::Gdf;
+    use crate::gdf::volume::TipoIso;
 
     const SETOR: u64 = 2048;
     const BASE_ASSINATURA: u64 = 32 * SETOR;
@@ -333,7 +342,11 @@ mod testes {
     ///     FILE1.TXT   (arquivo, setor 1000, conteúdo `conteudo_file1`)
     ///     SUBDIR/      (diretório, setor 2000)
     ///       FILE2.TXT (arquivo, setor 3000, conteúdo `conteudo_file2`)
-    fn criar_iso_teste(nome_arquivo: &str, conteudo_file1: &[u8], conteudo_file2: &[u8]) -> std::path::PathBuf {
+    fn criar_iso_teste(
+        nome_arquivo: &str,
+        conteudo_file1: &[u8],
+        conteudo_file2: &[u8],
+    ) -> std::path::PathBuf {
         let entrada_file1 = montar_entrada(1000, conteudo_file1.len() as u32, 0x00, "FILE1.TXT");
         let entrada_subdir = montar_entrada(2000, SETOR as u32, 0x10, "SUBDIR");
         let mut bloco_raiz = Vec::new();
@@ -356,21 +369,29 @@ mod testes {
 
         let caminho = std::env::temp_dir().join(nome_arquivo);
         let mut f = File::create(&caminho).expect("criar arquivo de teste");
-        f.set_len(BASE_ASSINATURA + DESLOCAMENTO_XGD3 + 65536).unwrap();
+        f.set_len(BASE_ASSINATURA + DESLOCAMENTO_XGD3 + 65536)
+            .unwrap();
 
-        f.seek(SeekFrom::Start(BASE_ASSINATURA + DESLOCAMENTO_XGD3)).unwrap();
+        f.seek(SeekFrom::Start(BASE_ASSINATURA + DESLOCAMENTO_XGD3))
+            .unwrap();
         f.write_all(&descritor).unwrap();
 
-        f.seek(SeekFrom::Start(DESLOCAMENTO_XGD3 + setor_raiz as u64 * SETOR)).unwrap();
+        f.seek(SeekFrom::Start(
+            DESLOCAMENTO_XGD3 + setor_raiz as u64 * SETOR,
+        ))
+        .unwrap();
         f.write_all(&bloco_raiz).unwrap();
 
-        f.seek(SeekFrom::Start(DESLOCAMENTO_XGD3 + 1000 * SETOR)).unwrap();
+        f.seek(SeekFrom::Start(DESLOCAMENTO_XGD3 + 1000 * SETOR))
+            .unwrap();
         f.write_all(conteudo_file1).unwrap();
 
-        f.seek(SeekFrom::Start(DESLOCAMENTO_XGD3 + 2000 * SETOR)).unwrap();
+        f.seek(SeekFrom::Start(DESLOCAMENTO_XGD3 + 2000 * SETOR))
+            .unwrap();
         f.write_all(&bloco_subdir).unwrap();
 
-        f.seek(SeekFrom::Start(DESLOCAMENTO_XGD3 + 3000 * SETOR)).unwrap();
+        f.seek(SeekFrom::Start(DESLOCAMENTO_XGD3 + 3000 * SETOR))
+            .unwrap();
         f.write_all(conteudo_file2).unwrap();
 
         caminho
@@ -393,7 +414,11 @@ mod testes {
         reconstruir(&mut gdf, &origem, &destino).expect("reconstrução deveria ter sucesso");
 
         let mut gdf_reconstruida = Gdf::abrir(&destino).expect("abrir ISO reconstruída");
-        assert_eq!(gdf_reconstruida.tipo, TipoIso::Xsf, "reconstrução deveria sempre usar o layout Xsf");
+        assert_eq!(
+            gdf_reconstruida.tipo,
+            TipoIso::Xsf,
+            "reconstrução deveria sempre usar o layout Xsf"
+        );
         assert_eq!(gdf_reconstruida.descritor.deslocamento_raiz, 0);
 
         assert!(gdf_reconstruida.existe("FILE1.TXT"));

@@ -5,7 +5,7 @@ use std::fs::File;
 use std::io::{BufReader, Read, Seek, SeekFrom};
 use std::path::Path;
 
-use diretorio::{TabelaDiretorio, PROFUNDIDADE_MAXIMA};
+use diretorio::{PROFUNDIDADE_MAXIMA, TabelaDiretorio};
 use volume::{DescritorVolume, TipoIso};
 
 use crate::erro::{Erro, Resultado};
@@ -159,11 +159,18 @@ impl Gdf {
         let (setor, tamanho) = {
             let pasta = obter_pasta(raiz, caminho, &mut self.leitor, &self.descritor, 0)?
                 .ok_or_else(nao_encontrado)?;
-            let entrada = pasta.encontrar(ultimo_componente).ok_or_else(nao_encontrado)?;
+            let entrada = pasta
+                .encontrar(ultimo_componente)
+                .ok_or_else(nao_encontrado)?;
             (entrada.setor, entrada.tamanho)
         };
 
-        validar_leitura(&self.descritor, setor, tamanho, &format!("o arquivo '{caminho}'"))?;
+        validar_leitura(
+            &self.descritor,
+            setor,
+            tamanho,
+            &format!("o arquivo '{caminho}'"),
+        )?;
 
         let posicao =
             self.descritor.deslocamento_raiz + setor as u64 * self.descritor.tamanho_setor as u64;
@@ -198,7 +205,9 @@ pub fn tipo_da_imagem(caminho: &Path) -> Option<TipoIso> {
         return Some(tipo);
     }
     let posicao = SETOR_ASSINATURA * TAMANHO_SETOR + tipo.deslocamento_raiz();
-    assinatura_presente(&mut leitor, posicao).ok()?.then_some(tipo)
+    assinatura_presente(&mut leitor, posicao)
+        .ok()?
+        .then_some(tipo)
 }
 
 /// Recusa uma leitura cujo tamanho declarado não cabe no volume — **antes**
@@ -275,8 +284,7 @@ fn processar_diretorio(
             (entrada.setor, entrada.tamanho, entrada.eh_diretorio())
         };
 
-        let setores_ocupados =
-            (tamanho as u64).div_ceil(descritor.tamanho_setor as u64) as u32;
+        let setores_ocupados = (tamanho as u64).div_ceil(descritor.tamanho_setor as u64) as u32;
         // O maior fim entre todas as entradas, em qualquer ordem da árvore
         // (o original só atualizava quando a entrada começava depois do
         // máximo atual, o que depende de os dados virem em ordem). Os dois
@@ -516,7 +524,9 @@ mod testes {
         let caminho = std::env::temp_dir().join("iso2god_teste_grande_sem_assinatura.bin");
         let arquivo = File::create(&caminho).unwrap();
         // esparso: não ocupa 34 MB de verdade no disco
-        arquivo.set_len(SETOR_ASSINATURA * TAMANHO_SETOR + 34_078_720 + 65_536).unwrap();
+        arquivo
+            .set_len(SETOR_ASSINATURA * TAMANHO_SETOR + 34_078_720 + 65_536)
+            .unwrap();
         drop(arquivo);
 
         let mensagem = match Gdf::abrir(&caminho) {
@@ -544,7 +554,8 @@ mod testes {
     #[test]
     fn tamanho_declarado_alem_do_volume_e_recusado_antes_de_alocar() {
         let caminho = std::env::temp_dir().join("iso2god_teste_alocacao.iso");
-        let mut dados = vec![0u8; (SETOR_ASSINATURA * TAMANHO_SETOR) as usize + 400 * TAMANHO_SETOR as usize];
+        let mut dados =
+            vec![0u8; (SETOR_ASSINATURA * TAMANHO_SETOR) as usize + 400 * TAMANHO_SETOR as usize];
         let base = (SETOR_ASSINATURA * TAMANHO_SETOR) as usize;
         dados[base..base + 20].copy_from_slice(ASSINATURA_XBOX_MEDIA);
         dados[base + 20..base + 24].copy_from_slice(&100u32.to_le_bytes());
@@ -592,7 +603,8 @@ mod testes {
         let mut raiz = entrada;
         raiz.resize(TAMANHO_SETOR as usize, 0xFF);
 
-        let mut dados = vec![0u8; (SETOR_ASSINATURA * TAMANHO_SETOR) as usize + 400 * TAMANHO_SETOR as usize];
+        let mut dados =
+            vec![0u8; (SETOR_ASSINATURA * TAMANHO_SETOR) as usize + 400 * TAMANHO_SETOR as usize];
         let base = (SETOR_ASSINATURA * TAMANHO_SETOR) as usize;
         dados[base..base + 20].copy_from_slice(ASSINATURA_XBOX_MEDIA);
         dados[base + 20..base + 24].copy_from_slice(&100u32.to_le_bytes());
@@ -602,7 +614,9 @@ mod testes {
         std::fs::write(&caminho, &dados).unwrap();
 
         let mut gdf = Gdf::abrir(&caminho).expect("a imagem em si é válida");
-        let ultimo = gdf.analisar_diretorios().expect("a travessia não pode entrar em pânico");
+        let ultimo = gdf
+            .analisar_diretorios()
+            .expect("a travessia não pode entrar em pânico");
         assert_eq!(ultimo, u32::MAX, "a soma deveria saturar, não dar a volta");
         assert!(
             gdf.validar_ultimo_setor(ultimo).is_err(),

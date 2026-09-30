@@ -13,6 +13,9 @@ const ASSINATURA_XPR0: u32 = 810_700_888;
 
 const FORMATO_DXT1: u8 = 12;
 const FORMATO_ARGB: u8 = 6;
+/// Igual ao ARGB, mas o quarto byte não é alfa (a imagem é opaca). Usado
+/// por alguns jogos, como o Darkwatch.
+const FORMATO_XRGB: u8 = 7;
 
 /// Uma textura já decodificada para RGBA8 (4 bytes por pixel, linha a
 /// linha, sem preenchimento entre linhas).
@@ -26,11 +29,15 @@ pub struct Textura {
 /// Equivalente a `XPR` + `XPR.ConvertToDDS` + `DDS.GetImage`.
 pub fn decodificar(dados: &[u8]) -> Resultado<Textura> {
     if dados.len() < 28 {
-        return Err(Erro::IsoInvalida("dados XPR pequenos demais para ter um cabeçalho".into()));
+        return Err(Erro::IsoInvalida(
+            "dados XPR pequenos demais para ter um cabeçalho".into(),
+        ));
     }
     let magic = u32::from_le_bytes(dados[0..4].try_into().unwrap());
     if magic != ASSINATURA_XPR0 {
-        return Err(Erro::IsoInvalida("dados não começam com a assinatura XPR0 esperada".into()));
+        return Err(Erro::IsoInvalida(
+            "dados não começam com a assinatura XPR0 esperada".into(),
+        ));
     }
 
     let file_size = u32::from_le_bytes(dados[4..8].try_into().unwrap());
@@ -41,7 +48,9 @@ pub fn decodificar(dados: &[u8]) -> Resultado<Textura> {
     // thumbnail são sempre quadradas, e replicamos isso fielmente.
     let expoente_tamanho = dados[27];
     let tamanho = 1u32.checked_shl(expoente_tamanho as u32).ok_or_else(|| {
-        Erro::IsoInvalida(format!("expoente de tamanho de textura XPR inválido: {expoente_tamanho}"))
+        Erro::IsoInvalida(format!(
+            "expoente de tamanho de textura XPR inválido: {expoente_tamanho}"
+        ))
     })?;
 
     let inicio_imagem = header_size as usize;
@@ -55,15 +64,20 @@ pub fn decodificar(dados: &[u8]) -> Resultado<Textura> {
 
     let rgba = match formato {
         FORMATO_DXT1 => decodificar_dxt1(tamanho, tamanho, imagem)?,
-        FORMATO_ARGB => decodificar_argb_swizzled(tamanho, tamanho, imagem)?,
+        FORMATO_ARGB => decodificar_argb_swizzled(tamanho, tamanho, imagem, false)?,
+        FORMATO_XRGB => decodificar_argb_swizzled(tamanho, tamanho, imagem, true)?,
         outro => {
             return Err(Erro::IsoInvalida(format!(
-                "formato de textura XPR não suportado: {outro} (só DXT1 e ARGB são portados)"
+                "formato de textura XPR não suportado: {outro} (só DXT1, ARGB e XRGB)"
             )));
         }
     };
 
-    Ok(Textura { largura: tamanho, altura: tamanho, rgba })
+    Ok(Textura {
+        largura: tamanho,
+        altura: tamanho,
+        rgba,
+    })
 }
 
 /// Quantos bytes ocupa uma imagem RGBA de `largura` x `altura`, ou erro se a
@@ -209,7 +223,13 @@ fn decodificar_dxt1(largura: u32, altura: u32, dados: &[u8]) -> Resultado<Vec<u8
 /// desfazendo primeiro o "ladrilhamento" (swizzle) usado pela GPU do Xbox
 /// original para guardar texturas na memória. Equivalente a
 /// `DDS.rgbaDecompressImage` + `DDS.UnswizzleRect`.
-fn decodificar_argb_swizzled(largura: u32, altura: u32, dados: &[u8]) -> Resultado<Vec<u8>> {
+/// Com `opaco`, o quarto byte é ignorado e o alfa vira 255 (formato XRGB).
+fn decodificar_argb_swizzled(
+    largura: u32,
+    altura: u32,
+    dados: &[u8],
+    opaco: bool,
+) -> Resultado<Vec<u8>> {
     let tamanho_necessario = bytes_rgba(largura, altura)?;
     if dados.len() < tamanho_necessario {
         return Err(Erro::IsoInvalida(
@@ -224,7 +244,11 @@ fn decodificar_argb_swizzled(largura: u32, altura: u32, dados: &[u8]) -> Resulta
         let b = desembaralhado[pixel * 4];
         let g = desembaralhado[pixel * 4 + 1];
         let r = desembaralhado[pixel * 4 + 2];
-        let a = desembaralhado[pixel * 4 + 3];
+        let a = if opaco {
+            0xFF
+        } else {
+            desembaralhado[pixel * 4 + 3]
+        };
         rgba[pixel * 4..pixel * 4 + 4].copy_from_slice(&[r, g, b, a]);
     }
 
@@ -249,8 +273,9 @@ fn desembaralhar(origem: &[u8], largura: u32, altura: u32, bytes_por_pixel: u32)
             let offset_destino =
                 (y as usize * largura as usize + x as usize) * bytes_por_pixel as usize;
             if offset_origem + bytes_por_pixel as usize <= origem.len() {
-                destino[offset_destino..offset_destino + bytes_por_pixel as usize]
-                    .copy_from_slice(&origem[offset_origem..offset_origem + bytes_por_pixel as usize]);
+                destino[offset_destino..offset_destino + bytes_por_pixel as usize].copy_from_slice(
+                    &origem[offset_origem..offset_origem + bytes_por_pixel as usize],
+                );
             }
         }
     }
@@ -453,6 +478,19 @@ mod testes {
     }
 
     #[test]
+    fn xrgb_ignora_o_quarto_byte_e_sai_opaco() {
+        // 2x2, B,G,R,X com X = 0: no ARGB seria transparente; no XRGB, opaco
+        let pixels = [10u8, 20, 30, 0].repeat(4);
+        let t = decodificar(&montar_xpr(FORMATO_XRGB, 1, &pixels)).unwrap();
+        assert_eq!((t.largura, t.altura), (2, 2));
+        for px in t.rgba.chunks(4) {
+            assert_eq!(px, [30, 20, 10, 255]);
+        }
+        let t = decodificar(&montar_xpr(FORMATO_ARGB, 1, &pixels)).unwrap();
+        assert!(t.rgba.chunks(4).all(|px| px == [30, 20, 10, 0]));
+    }
+
+    #[test]
     fn rejeita_xpr_sem_assinatura() {
         let mut dados = vec![0u8; 64];
         dados[0..4].copy_from_slice(b"NADA");
@@ -461,8 +499,13 @@ mod testes {
 
     #[test]
     fn rgba_para_png_produz_png_valido() {
-        let rgba = vec![255u8, 0, 0, 255, 0, 255, 0, 255, 0, 0, 255, 255, 255, 255, 255, 255];
+        let rgba = vec![
+            255u8, 0, 0, 255, 0, 255, 0, 255, 0, 0, 255, 255, 255, 255, 255, 255,
+        ];
         let png = rgba_para_png(2, 2, &rgba).expect("deveria codificar");
-        assert_eq!(&png[0..8], &[0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A]);
+        assert_eq!(
+            &png[0..8],
+            &[0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A]
+        );
     }
 }

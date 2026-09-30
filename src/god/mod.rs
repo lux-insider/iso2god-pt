@@ -131,8 +131,7 @@ fn resolver_metadados(opcoes: &OpcoesConversao, gdf: &mut Gdf) -> Resultado<Meta
         .or(detectado.title_id_hex)
         .ok_or_else(|| {
             Erro::IsoInvalida(
-                "não foi possível determinar o Title ID automaticamente; informe --title-id"
-                    .into(),
+                "não foi possível determinar o Title ID automaticamente; informe --title-id".into(),
             )
         })?;
 
@@ -142,8 +141,7 @@ fn resolver_metadados(opcoes: &OpcoesConversao, gdf: &mut Gdf) -> Resultado<Meta
         .or(detectado.media_id_hex)
         .ok_or_else(|| {
             Erro::IsoInvalida(
-                "não foi possível determinar o Media ID automaticamente; informe --media-id"
-                    .into(),
+                "não foi possível determinar o Media ID automaticamente; informe --media-id".into(),
             )
         })?;
 
@@ -156,7 +154,10 @@ fn resolver_metadados(opcoes: &OpcoesConversao, gdf: &mut Gdf) -> Resultado<Meta
 
     let disco = opcoes.disco.or(detectado.disco_numero).unwrap_or(1);
     let total_discos = opcoes.total_discos.or(detectado.disco_total).unwrap_or(1);
-    let plataforma_byte = opcoes.plataforma_byte.or(detectado.plataforma_byte).unwrap_or(0);
+    let plataforma_byte = opcoes
+        .plataforma_byte
+        .or(detectado.plataforma_byte)
+        .unwrap_or(0);
     let tipo_executavel_byte = opcoes
         .tipo_executavel_byte
         .or(detectado.tipo_executavel_byte)
@@ -306,7 +307,11 @@ fn detectar_do_xbe(gdf: &mut Gdf) -> MetadadosDetectados {
 
     // Mesma regra do original: DiskNumber 0 vira "disco 1"; DiscCount não
     // existe nesse caminho e é sempre fixado em 1.
-    let disco_numero = if info.disco_numero == 0 { 1 } else { info.disco_numero as u8 };
+    let disco_numero = if info.disco_numero == 0 {
+        1
+    } else {
+        info.disco_numero as u8
+    };
 
     let icone = match xbe::extrair_thumbnail(&bytes) {
         // Thumbnails de XBE são pequenos (64x64), mas um arquivo estranho
@@ -442,7 +447,10 @@ fn converter_parcial(
 
         reporter.fim_dos_blocos("Blocos de dados gravados.");
 
-        reporter.fase("calculando_hash", "Calculando cadeia de hash entre as partes...");
+        reporter.fase(
+            "calculando_hash",
+            "Calculando cadeia de hash entre as partes...",
+        );
         let (tamanho_ultima_parte, hash_mht_final) =
             calcular_cadeia_mht(&pasta_dados, partes_necessarias)?;
 
@@ -597,9 +605,10 @@ fn converter_completa(opcoes: &OpcoesConversao, gdf: &mut Gdf) -> Resultado<()> 
     // disco interno enquanto o destino é um HD externo é surpresa ruim. O PID
     // no nome evita que duas conversões simultâneas escrevam no mesmo arquivo.
     fs::create_dir_all(&opcoes.destino)?;
-    let caminho_reconstruida = opcoes
-        .destino
-        .join(format!(".iso2god-{}-{nome_base}.reconstruida.iso", std::process::id()));
+    let caminho_reconstruida = opcoes.destino.join(format!(
+        ".iso2god-{}-{nome_base}.reconstruida.iso",
+        std::process::id()
+    ));
 
     if let Err(e) = reconstrucao::reconstruir(gdf, &opcoes.origem, &caminho_reconstruida) {
         fs::remove_file(&caminho_reconstruida).ok();
@@ -654,7 +663,8 @@ const BLOCOS_POR_SHT: u32 = 204;
 fn offset_sht_na_parte(indice_sht: u32) -> u64 {
     hashtable::TAMANHO_TABELA as u64
         + indice_sht as u64
-            * (hashtable::TAMANHO_TABELA as u64 + BLOCOS_POR_SHT as u64 * hashtable::TAMANHO_BLOCO as u64)
+            * (hashtable::TAMANHO_TABELA as u64
+                + BLOCOS_POR_SHT as u64 * hashtable::TAMANHO_BLOCO as u64)
 }
 
 /// Deslocamento, dentro do arquivo de uma "Part", de onde começa o bloco de
@@ -674,7 +684,9 @@ fn offset_bloco_na_parte(indice_local: u32) -> u64 {
 /// `MAX_THREADS` (ver a constante).
 fn resolver_threads(threads: usize) -> usize {
     let alvo = if threads == 0 {
-        std::thread::available_parallelism().map(|n| n.get()).unwrap_or(1)
+        std::thread::available_parallelism()
+            .map(|n| n.get())
+            .unwrap_or(1)
     } else {
         threads
     };
@@ -706,7 +718,10 @@ fn escrever_partes(
         if sistema::cancelado() {
             return Err(Erro::Cancelado);
         }
-        reporter.detalhe_bloco(&format!("Escrevendo parte {} / {partes_necessarias}...", indice_parte + 1));
+        reporter.detalhe_bloco(&format!(
+            "Escrevendo parte {} / {partes_necessarias}...",
+            indice_parte + 1
+        ));
 
         let blocos_nesta_parte = (blocos_necessarios - blocos_processados).min(BLOCOS_POR_PARTE);
         // Rede de segurança: `converter_parcial` já recusa uma conversão de
@@ -856,7 +871,8 @@ fn processar_faixa(
         saida.write_all(trecho)?;
 
         for (k, bloco) in trecho.chunks_exact(tamanho_bloco).enumerate() {
-            tx.send(Ok((indice_local + k as u32, hashtable::sha1(bloco)))).ok();
+            tx.send(Ok((indice_local + k as u32, hashtable::sha1(bloco))))
+                .ok();
         }
         indice_local += n as u32;
     }

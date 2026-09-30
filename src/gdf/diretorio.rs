@@ -144,7 +144,11 @@ impl TabelaDiretorio {
             });
         }
 
-        Ok(Self { setor, tamanho, entradas })
+        Ok(Self {
+            setor,
+            tamanho,
+            entradas,
+        })
     }
 
     /// Serializa a tabela de volta para bytes, prontos para escrita no
@@ -202,7 +206,9 @@ impl TabelaDiretorio {
     /// Procura, entre as entradas diretas desta tabela, uma cujo nome bata
     /// (sem diferenciar maiúsculas/minúsculas) com `nome`.
     pub fn encontrar(&self, nome: &str) -> Option<&EntradaDiretorio> {
-        self.entradas.iter().find(|e| e.nome.eq_ignore_ascii_case(nome))
+        self.entradas
+            .iter()
+            .find(|e| e.nome.eq_ignore_ascii_case(nome))
     }
 }
 
@@ -224,7 +230,14 @@ pub(super) fn erro_profundidade_excedida() -> Erro {
 mod testes {
     use super::*;
 
-    fn entrada(subtree_l: u16, subtree_r: u16, setor: u32, tamanho: u32, attrib: u8, nome: &str) -> EntradaDiretorio {
+    fn entrada(
+        subtree_l: u16,
+        subtree_r: u16,
+        setor: u32,
+        tamanho: u32,
+        attrib: u8,
+        nome: &str,
+    ) -> EntradaDiretorio {
         EntradaDiretorio {
             subarvore_esquerda: subtree_l,
             subarvore_direita: subtree_r,
@@ -307,13 +320,20 @@ mod testes {
         bytes.resize(4096, 0xFF);
 
         let tabela = TabelaDiretorio::ler(&bytes, 100, 4096).unwrap();
-        assert_eq!(tabela.entradas.len(), 15, "as 15 entradas cabem na leitura linear");
+        assert_eq!(
+            tabela.entradas.len(),
+            15,
+            "as 15 entradas cabem na leitura linear"
+        );
 
         let mensagem = match tabela.para_bytes() {
             Ok(_) => panic!("a reescrita não caberia no tamanho declarado"),
             Err(e) => e.to_string(),
         };
-        assert!(mensagem.contains("não cabe"), "mensagem pouco clara: {mensagem}");
+        assert!(
+            mensagem.contains("não cabe"),
+            "mensagem pouco clara: {mensagem}"
+        );
     }
 
     #[test]

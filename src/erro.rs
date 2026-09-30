@@ -21,7 +21,9 @@ pub enum Erro {
     /// Espaço insuficiente no destino, detectado ANTES de escrever qualquer
     /// coisa (ver `crate::sistema::espaco_livre`) — um erro claro no início
     /// vale mais que um `ENOSPC` no meio de vários GB já gravados.
-    #[error("espaço insuficiente em {destino}: são necessários ~{necessario} e há {disponivel} livres")]
+    #[error(
+        "espaço insuficiente em {destino}: são necessários ~{necessario} e há {disponivel} livres"
+    )]
     EspacoInsuficiente {
         destino: String,
         necessario: String,

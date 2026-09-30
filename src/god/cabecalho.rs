@@ -135,7 +135,9 @@ impl Default for EscritorCabecalho {
 
 impl EscritorCabecalho {
     pub fn novo() -> Self {
-        Self { buffer: Box::new(*MODELO_LIVE) }
+        Self {
+            buffer: Box::new(*MODELO_LIVE),
+        }
     }
 
     /// Copia `dados` para dentro do buffer a partir de `offset`, verificando
@@ -332,8 +334,14 @@ mod testes {
         let mut c = EscritorCabecalho::novo();
         c.escrever_ids("4D5308BF", "AABBCCDD", "Título").unwrap();
 
-        assert_eq!(&c.buffer[OFF_TITLE_ID..OFF_TITLE_ID + 4], &[0x4D, 0x53, 0x08, 0xBF]);
-        assert_eq!(&c.buffer[OFF_MEDIA_ID..OFF_MEDIA_ID + 4], &[0xAA, 0xBB, 0xCC, 0xDD]);
+        assert_eq!(
+            &c.buffer[OFF_TITLE_ID..OFF_TITLE_ID + 4],
+            &[0x4D, 0x53, 0x08, 0xBF]
+        );
+        assert_eq!(
+            &c.buffer[OFF_MEDIA_ID..OFF_MEDIA_ID + 4],
+            &[0xAA, 0xBB, 0xCC, 0xDD]
+        );
 
         let titulo_esperado: Vec<u8> = "Título"
             .encode_utf16()
@@ -358,9 +366,14 @@ mod testes {
         let modelo = EscritorCabecalho::novo();
         let mut c = EscritorCabecalho::novo();
 
-        let titulo_gigante = "Tom Clancy's Splinter Cell Double Agent (USA) (En,Fr,Es) (Disc 1 of 2) Platinum Hits";
-        assert!(titulo_gigante.chars().count() > MAX_TITULO_UTF16, "o título de teste precisa estourar o campo");
-        c.escrever_ids("4D5308BF", "AABBCCDD", titulo_gigante).unwrap();
+        let titulo_gigante =
+            "Tom Clancy's Splinter Cell Double Agent (USA) (En,Fr,Es) (Disc 1 of 2) Platinum Hits";
+        assert!(
+            titulo_gigante.chars().count() > MAX_TITULO_UTF16,
+            "o título de teste precisa estourar o campo"
+        );
+        c.escrever_ids("4D5308BF", "AABBCCDD", titulo_gigante)
+            .unwrap();
 
         let fim_do_campo = OFF_TITULO_2 + MAX_TITULO_UTF16 * 2;
         assert_eq!(
@@ -404,7 +417,8 @@ mod testes {
         let mut c = EscritorCabecalho::novo();
         assert!(c.escrever_icone(Some(&vec![0xABu8; MAX_ICONE])).is_ok());
         assert!(
-            c.escrever_icone(Some(&vec![0xABu8; MAX_ICONE + 1])).is_err(),
+            c.escrever_icone(Some(&vec![0xABu8; MAX_ICONE + 1]))
+                .is_err(),
             "um PNG maior que o campo transbordaria para o thumbnail seguinte"
         );
     }
@@ -460,7 +474,10 @@ mod testes {
     fn escrever_info_partes_usa_endians_diferentes_por_campo() {
         let mut c = EscritorCabecalho::novo();
         c.escrever_info_partes(7, 256 * 1000).unwrap();
-        assert_eq!(&c.buffer[OFF_NUM_PARTES..OFF_NUM_PARTES + 4], &7u32.to_le_bytes());
+        assert_eq!(
+            &c.buffer[OFF_NUM_PARTES..OFF_NUM_PARTES + 4],
+            &7u32.to_le_bytes()
+        );
         assert_eq!(
             &c.buffer[OFF_TAMANHO_PARTES..OFF_TAMANHO_PARTES + 4],
             &1000u32.to_be_bytes()
@@ -486,14 +503,21 @@ mod testes {
             &c.buffer[OFF_ICONE_TAMANHO_1..OFF_ICONE_TAMANHO_1 + 4],
             &100u32.to_be_bytes()
         );
-        assert_eq!(&c.buffer[OFF_ICONE_DADOS_1..OFF_ICONE_DADOS_1 + 100], png.as_slice());
-        assert_eq!(&c.buffer[OFF_ICONE_DADOS_2..OFF_ICONE_DADOS_2 + 100], png.as_slice());
+        assert_eq!(
+            &c.buffer[OFF_ICONE_DADOS_1..OFF_ICONE_DADOS_1 + 100],
+            png.as_slice()
+        );
+        assert_eq!(
+            &c.buffer[OFF_ICONE_DADOS_2..OFF_ICONE_DADOS_2 + 100],
+            png.as_slice()
+        );
     }
 
     #[test]
     fn escrever_tipo_conteudo_grava_valor_correto() {
         let mut c = EscritorCabecalho::novo();
-        c.escrever_tipo_conteudo(TipoConteudo::GamesOnDemand).unwrap();
+        c.escrever_tipo_conteudo(TipoConteudo::GamesOnDemand)
+            .unwrap();
         assert_eq!(
             &c.buffer[OFF_TIPO_CONTEUDO..OFF_TIPO_CONTEUDO + 4],
             &0x7000u32.to_be_bytes()
@@ -517,7 +541,10 @@ mod testes {
         assert_eq!(c.buffer[913], 0);
 
         let hash_esperado = super::super::hashtable::sha1(&c.buffer[INICIO_REGIAO_HASH..]);
-        assert_eq!(&c.buffer[OFF_HASH_ASSINATURA..OFF_HASH_ASSINATURA + 20], &hash_esperado);
+        assert_eq!(
+            &c.buffer[OFF_HASH_ASSINATURA..OFF_HASH_ASSINATURA + 20],
+            &hash_esperado
+        );
 
         let gravado = std::fs::read(&arquivo_temp).unwrap();
         assert_eq!(gravado.len(), TAMANHO_CABECALHO_LIVE);

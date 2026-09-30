@@ -44,7 +44,8 @@ fn criar_iso_com_conteudo(nome_arquivo: &str, conteudo: &mut [u8]) -> PathBuf {
 
     let caminho = std::env::temp_dir().join(nome_arquivo);
     let mut f = File::create(&caminho).expect("criar arquivo de teste");
-    f.set_len(DESLOCAMENTO_XGD3 + conteudo.len() as u64).unwrap();
+    f.set_len(DESLOCAMENTO_XGD3 + conteudo.len() as u64)
+        .unwrap();
     f.seek(SeekFrom::Start(DESLOCAMENTO_XGD3)).unwrap();
     f.write_all(conteudo).unwrap();
 
@@ -87,7 +88,10 @@ fn converte_iso_pequena_e_gera_god_valido() {
 
     // <destino>/<TitleID>/<tipo de conteúdo>, o layout que o console procura
     let pasta_conteudo = destino.join("4D5308BF").join("00007000");
-    assert!(pasta_conteudo.is_dir(), "pasta de tipo de conteúdo deveria existir");
+    assert!(
+        pasta_conteudo.is_dir(),
+        "pasta de tipo de conteúdo deveria existir"
+    );
 
     let mut entradas: Vec<_> = fs::read_dir(&pasta_conteudo)
         .unwrap()
@@ -95,7 +99,11 @@ fn converte_iso_pequena_e_gera_god_valido() {
         .collect();
     entradas.sort();
     // Deve haver exatamente dois itens: o arquivo de cabeçalho e a pasta ".data".
-    assert_eq!(entradas.len(), 2, "esperado cabeçalho + pasta .data, achou: {entradas:?}");
+    assert_eq!(
+        entradas.len(),
+        2,
+        "esperado cabeçalho + pasta .data, achou: {entradas:?}"
+    );
 
     let nome_pasta_dados = entradas
         .iter()
@@ -217,7 +225,10 @@ fn falha_no_meio_da_conversao_nao_deixa_pacote_pela_metade() {
     // arquivo, isso falha depois de a pasta de saída já existir.
     fs::remove_file(&origem).unwrap();
 
-    assert!(god::converter(&opcoes).is_err(), "sem a ISO de origem a conversão tem que falhar");
+    assert!(
+        god::converter(&opcoes).is_err(),
+        "sem a ISO de origem a conversão tem que falhar"
+    );
 
     // A limpeza também remove os diretórios <TitleID>/<tipo> que ela mesma
     // criou e que ficaram vazios — o destino tem que voltar como estava.
@@ -266,10 +277,15 @@ fn entrada_de_diretorio_alem_do_fim_da_imagem_nao_gera_pacote_gigante() {
 
     let origem = std::env::temp_dir().join("iso2god_teste_setor_absurdo.iso");
     let mut f = File::create(&origem).unwrap();
-    f.set_len(DESLOCAMENTO_XGD3 + (SETOR_RAIZ as u64 + 8) * SETOR).unwrap();
-    f.seek(SeekFrom::Start(BASE_ASSINATURA + DESLOCAMENTO_XGD3)).unwrap();
+    f.set_len(DESLOCAMENTO_XGD3 + (SETOR_RAIZ as u64 + 8) * SETOR)
+        .unwrap();
+    f.seek(SeekFrom::Start(BASE_ASSINATURA + DESLOCAMENTO_XGD3))
+        .unwrap();
     f.write_all(&descritor).unwrap();
-    f.seek(SeekFrom::Start(DESLOCAMENTO_XGD3 + SETOR_RAIZ as u64 * SETOR)).unwrap();
+    f.seek(SeekFrom::Start(
+        DESLOCAMENTO_XGD3 + SETOR_RAIZ as u64 * SETOR,
+    ))
+    .unwrap();
     f.write_all(&bloco_raiz).unwrap();
     drop(f);
 

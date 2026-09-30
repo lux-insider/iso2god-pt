@@ -9,7 +9,7 @@ use serde::Serialize;
 
 use crate::erro::Resultado;
 use crate::gdf;
-use crate::terminal::{emo, fmt_bytes, Tema, LARGURA};
+use crate::terminal::{LARGURA, Tema, emo, fmt_bytes};
 use crate::{xbe, xex};
 
 /// Resumo estruturado de uma ISO, usado tanto para a saída de texto quanto
@@ -77,7 +77,8 @@ pub fn analisar(origem: &Path) -> Resultado<InfoIso> {
                 info.titulo = t.titulo;
                 if let Some(png) = t.icone_png {
                     use base64::Engine;
-                    info.thumbnail_png_base64 = Some(base64::engine::general_purpose::STANDARD.encode(&png));
+                    info.thumbnail_png_base64 =
+                        Some(base64::engine::general_purpose::STANDARD.encode(&png));
                 }
             }
         }
@@ -88,12 +89,17 @@ pub fn analisar(origem: &Path) -> Resultado<InfoIso> {
                 info.title_id = Some(cert.title_id_hex());
                 info.media_id = Some(xbe::media_id_substituto(&bytes));
                 info.titulo = Some(cert.titulo);
-                info.disco = Some(if cert.disco_numero == 0 { 1 } else { cert.disco_numero as u8 });
+                info.disco = Some(if cert.disco_numero == 0 {
+                    1
+                } else {
+                    cert.disco_numero as u8
+                });
                 info.total_discos = Some(1);
             }
             if let Ok(png) = xbe::extrair_thumbnail(&bytes) {
                 use base64::Engine;
-                info.thumbnail_png_base64 = Some(base64::engine::general_purpose::STANDARD.encode(&png));
+                info.thumbnail_png_base64 =
+                    Some(base64::engine::general_purpose::STANDARD.encode(&png));
             }
         }
     }
@@ -116,12 +122,32 @@ impl InfoIso {
 
     /// Imprime o resumo em caixas/campos coloridos (ver `crate::terminal`).
     pub fn imprimir(&self, tema: &Tema) {
-        println!("{}", tema.caixa_titulo("Análise da imagem ISO", emo::ANALISAR(), LARGURA, true));
+        println!(
+            "{}",
+            tema.caixa_titulo("Análise da imagem ISO", emo::ANALISAR(), LARGURA, true)
+        );
 
-        println!("{}", tema.campo("Tipo de disco", &self.tipo_disco, emo::DISCO(), 20));
-        println!("{}", tema.campo("Tamanho do volume", &fmt_bytes(self.tamanho_volume), "", 20));
-        println!("{}", tema.campo("Setores no volume", &self.setores_volume.to_string(), "", 20));
-        println!("{}", tema.campo("Entradas na raiz", &self.entradas_raiz.to_string(), "", 20));
+        println!(
+            "{}",
+            tema.campo("Tipo de disco", &self.tipo_disco, emo::DISCO(), 20)
+        );
+        println!(
+            "{}",
+            tema.campo("Tamanho do volume", &fmt_bytes(self.tamanho_volume), "", 20)
+        );
+        println!(
+            "{}",
+            tema.campo(
+                "Setores no volume",
+                &self.setores_volume.to_string(),
+                "",
+                20
+            )
+        );
+        println!(
+            "{}",
+            tema.campo("Entradas na raiz", &self.entradas_raiz.to_string(), "", 20)
+        );
 
         if self.contem_default_xex {
             tema.marca_ok("default.xex", "encontrado");
@@ -135,7 +161,10 @@ impl InfoIso {
         }
 
         if let Some(nome_plataforma) = self.nome_plataforma() {
-            println!("{}", tema.etapa(None, &format!("Detectado: {nome_plataforma}"), None));
+            println!(
+                "{}",
+                tema.etapa(None, &format!("Detectado: {nome_plataforma}"), None)
+            );
             if let Some(t) = &self.title_id {
                 println!("{}", tema.campo("Title ID", t, emo::JOGO(), 20));
             }
@@ -146,19 +175,35 @@ impl InfoIso {
                 println!("{}", tema.campo("Título", t, emo::ESTRELA(), 20));
             }
             if let (Some(d), Some(td)) = (self.disco, self.total_discos) {
-                println!("{}", tema.campo("Disco", &format!("{d} / {td}"), emo::DISCO(), 20));
+                println!(
+                    "{}",
+                    tema.campo("Disco", &format!("{d} / {td}"), emo::DISCO(), 20)
+                );
             }
             if let Some(png) = &self.thumbnail_png_base64 {
                 println!(
                     "{}",
-                    tema.campo("Thumbnail", &format!("{} (PNG, base64)", fmt_bytes(png.len() as u64)), emo::ESTRELA(), 20)
+                    tema.campo(
+                        "Thumbnail",
+                        &format!("{} (PNG, base64)", fmt_bytes(png.len() as u64)),
+                        emo::ESTRELA(),
+                        20
+                    )
                 );
             }
         } else {
             tema.aviso("Plataforma não detectada (nenhum default.xex/default.xbe encontrado)");
         }
 
-        println!("{}", tema.campo("Último setor ocupado", &self.ultimo_setor.to_string(), "", 20));
+        println!(
+            "{}",
+            tema.campo(
+                "Último setor ocupado",
+                &self.ultimo_setor.to_string(),
+                "",
+                20
+            )
+        );
         // `info` continua mostrando o número (é diagnóstico), mas avisa quando
         // ele não faz sentido para o tamanho da imagem — é o sintoma de uma
         // entrada de diretório corrompida, e a conversão vai recusar.

@@ -12,14 +12,14 @@
 //! bytes/blocos reais) chega para fora.
 
 use std::io::{IsTerminal, Write};
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Mutex;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Instant;
 
 use serde::Serialize;
 
 use crate::god::hashtable;
-use crate::terminal::{c, emo, BarraProgresso, Tema, NEG, SIM_SETA};
+use crate::terminal::{BarraProgresso, NEG, SIM_SETA, Tema, c, emo};
 
 /// Um evento de progresso, serializado como uma linha JSON quando
 /// `--progresso-json` está ativo. O formato é estável: programas que já
@@ -60,7 +60,9 @@ fn emitir(evento: &EventoProgresso) {
 /// ativo, ou uma linha rica em stderr caso contrário.
 pub fn relatar_erro_final(mensagem: &str, json: bool) {
     if json {
-        emitir(&EventoProgresso::Erro { mensagem: mensagem.to_string() });
+        emitir(&EventoProgresso::Erro {
+            mensagem: mensagem.to_string(),
+        });
     } else {
         Tema::detectar().erro(mensagem);
     }
@@ -71,10 +73,17 @@ pub fn relatar_erro_final(mensagem: &str, json: bool) {
 /// reconstrução da GDF em `--padding completa`).
 pub fn anunciar_fase(fase: &'static str, mensagem: &str, json: bool) {
     if json {
-        emitir(&EventoProgresso::Fase { fase, mensagem: mensagem.to_string() });
+        emitir(&EventoProgresso::Fase {
+            fase,
+            mensagem: mensagem.to_string(),
+        });
     } else {
         let tema = Tema::detectar();
-        println!("\n{} {}", tema_seta(&tema), tema.c(mensagem, &[&c::branco(), NEG]));
+        println!(
+            "\n{} {}",
+            tema_seta(&tema),
+            tema.c(mensagem, &[&c::branco(), NEG])
+        );
     }
 }
 
@@ -145,10 +154,17 @@ impl Reporter {
     pub fn fase(&self, fase: &'static str, mensagem: &str) {
         match self {
             Reporter::Rico(estado) => {
-                println!("\n{} {}", tema_seta(&estado.tema), estado.tema.c(mensagem, &[&c::branco(), NEG]));
+                println!(
+                    "\n{} {}",
+                    tema_seta(&estado.tema),
+                    estado.tema.c(mensagem, &[&c::branco(), NEG])
+                );
             }
             Reporter::Json(_) => {
-                emitir(&EventoProgresso::Fase { fase, mensagem: mensagem.to_string() });
+                emitir(&EventoProgresso::Fase {
+                    fase,
+                    mensagem: mensagem.to_string(),
+                });
             }
         }
     }
@@ -165,7 +181,10 @@ impl Reporter {
                 }
             }
             Reporter::Json(_) => {
-                emitir(&EventoProgresso::Fase { fase: "convertendo", mensagem: mensagem.to_string() });
+                emitir(&EventoProgresso::Fase {
+                    fase: "convertendo",
+                    mensagem: mensagem.to_string(),
+                });
             }
         }
     }
@@ -186,7 +205,10 @@ impl Reporter {
         match self {
             Reporter::Rico(estado) => estado.tema.aviso(mensagem),
             Reporter::Json(_) => {
-                emitir(&EventoProgresso::Fase { fase: "aviso", mensagem: mensagem.to_string() });
+                emitir(&EventoProgresso::Fase {
+                    fase: "aviso",
+                    mensagem: mensagem.to_string(),
+                });
             }
         }
     }
@@ -196,7 +218,12 @@ impl Reporter {
         match self {
             Reporter::Rico(estado) => {
                 let processados = estado.processados.fetch_add(n, Ordering::Relaxed) + n;
-                if !deve_emitir(&estado.ultimo_emitido_ms, &estado.inicio, processados, estado.total_blocos) {
+                if !deve_emitir(
+                    &estado.ultimo_emitido_ms,
+                    &estado.inicio,
+                    processados,
+                    estado.total_blocos,
+                ) {
                     return;
                 }
                 let (bytes, velocidade, eta) =
@@ -206,7 +233,12 @@ impl Reporter {
             }
             Reporter::Json(estado) => {
                 let processados = estado.processados.fetch_add(n, Ordering::Relaxed) + n;
-                if !deve_emitir(&estado.ultimo_emitido_ms, &estado.inicio, processados, estado.total_blocos) {
+                if !deve_emitir(
+                    &estado.ultimo_emitido_ms,
+                    &estado.inicio,
+                    processados,
+                    estado.total_blocos,
+                ) {
                     return;
                 }
                 let (bytes, velocidade_bps, eta_segundos) =
@@ -226,7 +258,8 @@ impl Reporter {
     /// Marca a etapa de escrita de blocos como concluída.
     pub fn fim_dos_blocos(&self, _mensagem: &str) {
         if let Reporter::Rico(estado) = self {
-            let feito = estado.processados.load(Ordering::Relaxed) * hashtable::TAMANHO_BLOCO as u64;
+            let feito =
+                estado.processados.load(Ordering::Relaxed) * hashtable::TAMANHO_BLOCO as u64;
             estado.barra.finalizar(feito, true);
         }
     }
@@ -259,10 +292,18 @@ fn deve_emitir(ultimo_ms: &AtomicU64, inicio: &Instant, processados: u64, total:
     true
 }
 
-fn calcular_metricas(processados: u64, total_bytes: u64, inicio: &Instant) -> (u64, f64, Option<f64>) {
+fn calcular_metricas(
+    processados: u64,
+    total_bytes: u64,
+    inicio: &Instant,
+) -> (u64, f64, Option<f64>) {
     let bytes = processados * hashtable::TAMANHO_BLOCO as u64;
     let segundos = inicio.elapsed().as_secs_f64();
-    let velocidade_bps = if segundos > 0.0 { bytes as f64 / segundos } else { 0.0 };
+    let velocidade_bps = if segundos > 0.0 {
+        bytes as f64 / segundos
+    } else {
+        0.0
+    };
     let eta_segundos = if velocidade_bps > 0.0 {
         Some((total_bytes.saturating_sub(bytes)) as f64 / velocidade_bps)
     } else {

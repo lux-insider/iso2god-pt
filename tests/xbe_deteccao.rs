@@ -36,7 +36,10 @@ fn montar_xbe_sintetico(title_id: u32, titulo: &str, disco_numero: u32) -> Vec<u
 
     let mut cert = vec![0u8; TAMANHO_CERTIFICADO];
     cert[8..12].copy_from_slice(&title_id.to_le_bytes());
-    let nome_utf16: Vec<u8> = titulo.encode_utf16().flat_map(|u| u.to_le_bytes()).collect();
+    let nome_utf16: Vec<u8> = titulo
+        .encode_utf16()
+        .flat_map(|u| u.to_le_bytes())
+        .collect();
     cert[12..12 + nome_utf16.len()].copy_from_slice(&nome_utf16);
     cert[168..172].copy_from_slice(&disco_numero.to_le_bytes());
 
@@ -83,13 +86,20 @@ fn criar_iso_com_xbe(nome_arquivo: &str, xbe_bytes: &[u8]) -> PathBuf {
     let tamanho_total = DESLOCAMENTO_XGD3 + (SETOR_XBE as u64) * SETOR + xbe_bytes.len() as u64;
     f.set_len(tamanho_total).unwrap();
 
-    f.seek(SeekFrom::Start(BASE_ASSINATURA + DESLOCAMENTO_XGD3)).unwrap();
+    f.seek(SeekFrom::Start(BASE_ASSINATURA + DESLOCAMENTO_XGD3))
+        .unwrap();
     f.write_all(&descritor).unwrap();
 
-    f.seek(SeekFrom::Start(DESLOCAMENTO_XGD3 + SETOR_RAIZ as u64 * SETOR)).unwrap();
+    f.seek(SeekFrom::Start(
+        DESLOCAMENTO_XGD3 + SETOR_RAIZ as u64 * SETOR,
+    ))
+    .unwrap();
     f.write_all(&bloco_raiz).unwrap();
 
-    f.seek(SeekFrom::Start(DESLOCAMENTO_XGD3 + SETOR_XBE as u64 * SETOR)).unwrap();
+    f.seek(SeekFrom::Start(
+        DESLOCAMENTO_XGD3 + SETOR_XBE as u64 * SETOR,
+    ))
+    .unwrap();
     f.write_all(xbe_bytes).unwrap();
 
     caminho

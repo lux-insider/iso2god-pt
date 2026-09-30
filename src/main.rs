@@ -70,13 +70,20 @@ fn exibir_banner(modo_maquina: bool) {
     }
     let tema = Tema::detectar();
     let titulo = format!("iso2god v{}", env!("CARGO_PKG_VERSION"));
-    println!("{}", tema.caixa_titulo(&titulo, terminal::emo::APP(), terminal::LARGURA, true));
+    println!(
+        "{}",
+        tema.caixa_titulo(&titulo, terminal::emo::APP(), terminal::LARGURA, true)
+    );
 }
 
 fn comando_converter(args: cli::ArgsConverter) -> Resultado<()> {
     progresso::anunciar_fase(
         "iniciando",
-        &format!("Convertendo {} -> {}", args.origem.display(), args.destino.display()),
+        &format!(
+            "Convertendo {} -> {}",
+            args.origem.display(),
+            args.destino.display()
+        ),
         args.progresso_json,
     );
 
@@ -104,7 +111,10 @@ fn comando_converter(args: cli::ArgsConverter) -> Resultado<()> {
 fn comando_info(args: cli::ArgsInfo) -> Resultado<()> {
     let tema = Tema::detectar();
     if !args.json {
-        tema.info_linha(terminal::emo::ANALISAR(), &format!("Analisando {}", args.origem.display()));
+        tema.info_linha(
+            terminal::emo::ANALISAR(),
+            &format!("Analisando {}", args.origem.display()),
+        );
     }
 
     let info = analise::analisar(&args.origem)?;

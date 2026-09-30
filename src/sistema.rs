@@ -92,7 +92,11 @@ unsafe extern "system" fn tratar_console(tipo: u32) -> windows_sys::Win32::Found
     if tipo != CTRL_C_EVENT && tipo != CTRL_BREAK_EVENT {
         return 0;
     }
-    if CANCELADO.swap(true, Ordering::SeqCst) { 0 } else { 1 }
+    if CANCELADO.swap(true, Ordering::SeqCst) {
+        0
+    } else {
+        1
+    }
 }
 
 #[cfg(windows)]
@@ -140,9 +144,20 @@ pub fn espaco_livre(caminho: &Path) -> Option<u64> {
     use windows_sys::Win32::Storage::FileSystem::GetDiskFreeSpaceExW;
 
     let existente = ancestral_existente(caminho)?;
-    let largo: Vec<u16> = existente.as_os_str().encode_wide().chain(std::iter::once(0)).collect();
+    let largo: Vec<u16> = existente
+        .as_os_str()
+        .encode_wide()
+        .chain(std::iter::once(0))
+        .collect();
     let mut livre: u64 = 0;
-    let ok = unsafe { GetDiskFreeSpaceExW(largo.as_ptr(), &mut livre, std::ptr::null_mut(), std::ptr::null_mut()) };
+    let ok = unsafe {
+        GetDiskFreeSpaceExW(
+            largo.as_ptr(),
+            &mut livre,
+            std::ptr::null_mut(),
+            std::ptr::null_mut(),
+        )
+    };
     (ok != 0).then_some(livre)
 }
 
@@ -161,7 +176,10 @@ fn ancestral_existente(caminho: &Path) -> Option<std::path::PathBuf> {
     } else {
         std::env::current_dir().ok()?.join(caminho)
     };
-    absoluto.ancestors().find(|p| p.exists()).map(Path::to_path_buf)
+    absoluto
+        .ancestors()
+        .find(|p| p.exists())
+        .map(Path::to_path_buf)
 }
 
 #[cfg(test)]
@@ -171,7 +189,10 @@ mod testes {
     #[test]
     fn espaco_livre_de_um_caminho_que_existe_e_plausivel() {
         let livre = espaco_livre(Path::new("/")).expect("statvfs de / deveria funcionar");
-        assert!(livre > 0, "um sistema de arquivos raiz sem nenhum byte livre é improvável");
+        assert!(
+            livre > 0,
+            "um sistema de arquivos raiz sem nenhum byte livre é improvável"
+        );
     }
 
     #[test]

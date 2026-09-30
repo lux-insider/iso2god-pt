@@ -92,9 +92,11 @@ pub fn ler_info_execucao(xex: &[u8]) -> Resultado<InfoExecucao> {
 }
 
 fn ler_execution_info(xex: &[u8], endereco: usize) -> Resultado<InfoExecucao> {
-    let fim = endereco.checked_add(TAMANHO_EXECUTION_INFO).ok_or_else(|| {
-        Erro::IsoInvalida("endereço do bloco ExecutionInfo do XEX é inválido".into())
-    })?;
+    let fim = endereco
+        .checked_add(TAMANHO_EXECUTION_INFO)
+        .ok_or_else(|| {
+            Erro::IsoInvalida("endereço do bloco ExecutionInfo do XEX é inválido".into())
+        })?;
     if fim > xex.len() {
         return Err(Erro::IsoInvalida(
             "o bloco ExecutionInfo do XEX aponta além do fim do arquivo".into(),
@@ -164,8 +166,14 @@ mod testes {
 
     #[test]
     fn extrai_execution_info_de_um_xex_sintetico() {
-        let info_bruta =
-            montar_execution_info([0xAA, 0xBB, 0xCC, 0xDD], [0x4D, 0x53, 0x08, 0xBF], 2, 0, 1, 2);
+        let info_bruta = montar_execution_info(
+            [0xAA, 0xBB, 0xCC, 0xDD],
+            [0x4D, 0x53, 0x08, 0xBF],
+            2,
+            0,
+            1,
+            2,
+        );
         let xex = montar_xex_sintetico(&info_bruta);
 
         let info = ler_info_execucao(&xex).expect("deveria extrair ExecutionInfo");

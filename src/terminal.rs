@@ -39,7 +39,8 @@ mod console_windows {
     use std::sync::atomic::Ordering;
     use windows_sys::Win32::System::Console::{
         ENABLE_PROCESSED_OUTPUT, ENABLE_VIRTUAL_TERMINAL_PROCESSING, GetConsoleMode, GetStdHandle,
-        STD_ERROR_HANDLE, STD_HANDLE, STD_OUTPUT_HANDLE, SetConsoleCP, SetConsoleMode, SetConsoleOutputCP,
+        STD_ERROR_HANDLE, STD_HANDLE, STD_OUTPUT_HANDLE, SetConsoleCP, SetConsoleMode,
+        SetConsoleOutputCP,
     };
     use windows_sys::Win32::System::LibraryLoader::{GetModuleHandleA, GetProcAddress};
 
@@ -73,7 +74,10 @@ mod console_windows {
             if handle.is_null() || GetConsoleMode(handle, &mut modo) == 0 {
                 return false;
             }
-            SetConsoleMode(handle, modo | ENABLE_PROCESSED_OUTPUT | ENABLE_VIRTUAL_TERMINAL_PROCESSING) != 0
+            SetConsoleMode(
+                handle,
+                modo | ENABLE_PROCESSED_OUTPUT | ENABLE_VIRTUAL_TERMINAL_PROCESSING,
+            ) != 0
         }
     }
 
@@ -293,7 +297,9 @@ pub fn cortar(texto: &str, limite: usize) -> String {
 }
 
 fn colunas_terminal() -> usize {
-    terminal_size::terminal_size().map(|(w, _)| w.0 as usize).unwrap_or(80)
+    terminal_size::terminal_size()
+        .map(|(w, _)| w.0 as usize)
+        .unwrap_or(80)
 }
 
 // ================================================================== emoji
@@ -370,7 +376,9 @@ pub struct Tema {
 
 impl Tema {
     pub fn detectar() -> Self {
-        Self { cor_ativa: suporta_cor() }
+        Self {
+            cor_ativa: suporta_cor(),
+        }
     }
 
     /// Aplica cor/estilo respeitando se este tema tem cor ativa.
@@ -422,7 +430,13 @@ impl Tema {
     /// │ 🎮  iso2god           │
     /// ╰──────────────────────╯
     /// ```
-    pub fn caixa_titulo(&self, texto: &str, emoji: &str, largura: usize, gradiente_borda: bool) -> String {
+    pub fn caixa_titulo(
+        &self,
+        texto: &str,
+        emoji: &str,
+        largura: usize,
+        gradiente_borda: bool,
+    ) -> String {
         self.caixa_titulo_com(texto, emoji, largura, gradiente_borda, false)
     }
 
@@ -452,15 +466,25 @@ impl Tema {
         let topo = if gradiente_borda {
             self.borda_gradiente(largura - 2, '\u{256D}', '\u{256E}')
         } else {
-            self.c(&format!("\u{256D}{}\u{256E}", "\u{2500}".repeat(largura - 2)), &[&c::azul()])
+            self.c(
+                &format!("\u{256D}{}\u{256E}", "\u{2500}".repeat(largura - 2)),
+                &[&c::azul()],
+            )
         };
         let base = if gradiente_borda {
             self.borda_gradiente(largura - 2, '\u{2570}', '\u{256F}')
         } else {
-            self.c(&format!("\u{2570}{}\u{256F}", "\u{2500}".repeat(largura - 2)), &[&c::azul()])
+            self.c(
+                &format!("\u{2570}{}\u{256F}", "\u{2500}".repeat(largura - 2)),
+                &[&c::azul()],
+            )
         };
         // Texto já pintado letra a letra não pode levar uma cor por cima.
-        let corpo = if gradiente_texto { miolo.clone() } else { self.c(&miolo, &[NEG, &c::branco()]) };
+        let corpo = if gradiente_texto {
+            miolo.clone()
+        } else {
+            self.c(&miolo, &[NEG, &c::branco()])
+        };
         let borda_lateral = self.c("\u{2502}", &[&c::azul()]);
 
         format!(
@@ -471,12 +495,21 @@ impl Tema {
 
     /// Linha "rótulo: valor" alinhada, com marca de emoji à esquerda.
     pub fn campo(&self, rotulo: &str, valor: &str, emoji: &str, largura_rotulo: usize) -> String {
-        let marca = if emoji.is_empty() { "  ".to_string() } else { marca_larga(emoji) };
+        let marca = if emoji.is_empty() {
+            "  ".to_string()
+        } else {
+            marca_larga(emoji)
+        };
         let mut rotulo_pad = pad(rotulo, largura_rotulo, '<');
         if largura_visivel(&rotulo_pad) >= largura_rotulo && !rotulo_pad.ends_with(' ') {
             rotulo_pad.push(' ');
         }
-        format!("  {} {}{}", marca, self.c(&rotulo_pad, &[&c::cinza()]), self.c(valor, &[&c::branco()]))
+        format!(
+            "  {} {}{}",
+            marca,
+            self.c(&rotulo_pad, &[&c::cinza()]),
+            self.c(valor, &[&c::branco()])
+        )
     }
 
     pub fn marca_ok(&self, rotulo: &str, valor: &str) {
@@ -523,7 +556,11 @@ impl Tema {
         descricao: &str,
     ) -> String {
         let cor_chave = cor_chave.map(String::from).unwrap_or_else(c::verde);
-        let marca = if emoji.is_empty() { String::new() } else { format!("{emoji}  ") };
+        let marca = if emoji.is_empty() {
+            String::new()
+        } else {
+            format!("{emoji}  ")
+        };
         let rotulo = pad(&format!("[{chave}]"), 4, '>');
         let mut linha = format!(
             "  {}  {}{}",
@@ -540,7 +577,11 @@ impl Tema {
     /// Linha de status com bolinha: `● 12 núcleos`.
     pub fn ponto_status(&self, ok: bool, texto: &str) -> String {
         let cor_ponto = if ok { c::verde() } else { c::vermelho() };
-        format!("  {} {}", self.c(SIM_PONTO, &[&cor_ponto]), self.c(texto, &[&c::branco()]))
+        format!(
+            "  {} {}",
+            self.c(SIM_PONTO, &[&cor_ponto]),
+            self.c(texto, &[&c::branco()])
+        )
     }
 
     /// Cor do gradiente na posição `pos` (0.0 a 1.0), ou `None` quando o tema
@@ -636,7 +677,10 @@ impl Tema {
         let meio = LARGURA
             .saturating_sub(largura_visivel(&esquerda))
             .saturating_sub(largura_visivel(&direita));
-        format!("{esquerda}{}{direita}", self.regua_gradiente_parcial(meio, ini, fim))
+        format!(
+            "{esquerda}{}{direita}",
+            self.regua_gradiente_parcial(meio, ini, fim)
+        )
     }
 
     /// Tabela alinhada, com cabeçalho em ciano e uma linha opcionalmente
@@ -670,7 +714,11 @@ impl Tema {
         let cabecalho = format!(
             "  {}",
             (0..colunas)
-                .map(|i| pad(&self.c(cabecalhos[i], &[NEG, &c::ciano()]), larguras[i], alinhar(i)))
+                .map(|i| pad(
+                    &self.c(cabecalhos[i], &[NEG, &c::ciano()]),
+                    larguras[i],
+                    alinhar(i)
+                ))
                 .collect::<Vec<_>>()
                 .join("  ")
         );
@@ -679,10 +727,20 @@ impl Tema {
         let mut corpo = Vec::new();
         for (indice, linha) in linhas.iter().enumerate() {
             let celulas: Vec<String> = (0..colunas)
-                .map(|i| pad(linha.get(i).map(String::as_str).unwrap_or(""), larguras[i], alinhar(i)))
+                .map(|i| {
+                    pad(
+                        linha.get(i).map(String::as_str).unwrap_or(""),
+                        larguras[i],
+                        alinhar(i),
+                    )
+                })
                 .collect();
             let linha = if destaque == Some(indice) {
-                format!("{} {}", self.c(SIM_SETA, &[&c::verde()]), celulas.join("  "))
+                format!(
+                    "{} {}",
+                    self.c(SIM_SETA, &[&c::verde()]),
+                    celulas.join("  ")
+                )
             } else {
                 format!("  {}", celulas.join("  "))
             };
@@ -694,7 +752,10 @@ impl Tema {
             .map(|l| largura_visivel(l.trim_end()))
             .max()
             .unwrap_or(0);
-        let separador = format!("  {}", self.c(&"\u{2500}".repeat(util.max(6) - 2), &[&c::cinza()]));
+        let separador = format!(
+            "  {}",
+            self.c(&"\u{2500}".repeat(util.max(6) - 2), &[&c::cinza()])
+        );
 
         let mut saida = vec![cabecalho, separador];
         saida.extend(corpo);
@@ -707,22 +768,41 @@ impl Tema {
             (Some(n), Some(t)) => format!("{n}/{t} \u{B7} {titulo}"),
             _ => titulo.to_string(),
         };
-        let cabeca = format!("  {} {} ", self.c("\u{2500}\u{2500}", &[&c::cinza()]), self.c(&prefixo, &[&c::ciano(), NEG]));
+        let cabeca = format!(
+            "  {} {} ",
+            self.c("\u{2500}\u{2500}", &[&c::cinza()]),
+            self.c(&prefixo, &[&c::ciano(), NEG])
+        );
         let resto = LARGURA.saturating_sub(largura_visivel(&cabeca));
-        format!("\n{cabeca}{}", self.c(&"\u{2500}".repeat(resto), &[&c::cinza()]))
+        format!(
+            "\n{cabeca}{}",
+            self.c(&"\u{2500}".repeat(resto), &[&c::cinza()])
+        )
     }
 
     /// Eco do que foi aceito, recuado sob a pergunta que o gerou.
     pub fn resposta(&self, texto: &str) -> String {
-        format!("    {} {}", self.c("\u{2514}", &[&c::cinza()]), self.c(texto, &[&c::ciano()]))
+        format!(
+            "    {} {}",
+            self.c("\u{2514}", &[&c::cinza()]),
+            self.c(texto, &[&c::ciano()])
+        )
     }
 
     pub fn dica(&self, texto: &str) {
-        println!("{}  {}", self.c(emo::DICA(), &[]), self.c(texto, &[&c::ciano(), ITA]));
+        println!(
+            "{}  {}",
+            self.c(emo::DICA(), &[]),
+            self.c(texto, &[&c::ciano(), ITA])
+        );
     }
 
     pub fn sucesso(&self, texto: &str) {
-        println!("{}  {}", self.c(emo::OK(), &[]), self.c(texto, &[&c::verde(), NEG]));
+        println!(
+            "{}  {}",
+            self.c(emo::OK(), &[]),
+            self.c(texto, &[&c::verde(), NEG])
+        );
     }
 
     /// Erros e avisos vão para **stderr**, não stdout: `iso2god info x.iso >
@@ -731,11 +811,19 @@ impl Tema {
     /// com dado. (No modo `--json` o erro sai como evento no stdout, que é
     /// o protocolo — ver `crate::progresso`.)
     pub fn erro(&self, texto: &str) {
-        eprintln!("{} {}", self.c(emo::ERRO(), &[]), self.c(texto, &[&c::vermelho(), NEG]));
+        eprintln!(
+            "{} {}",
+            self.c(emo::ERRO(), &[]),
+            self.c(texto, &[&c::vermelho(), NEG])
+        );
     }
 
     pub fn aviso(&self, texto: &str) {
-        eprintln!("{}  {}", self.c(emo::AVISO(), &[]), self.c(texto, &[&c::amarelo()]));
+        eprintln!(
+            "{}  {}",
+            self.c(emo::AVISO(), &[]),
+            self.c(texto, &[&c::amarelo()])
+        );
     }
 
     pub fn info_linha(&self, emoji: &str, texto: &str) {
@@ -750,7 +838,11 @@ impl Tema {
 /// Cor do gradiente na posição `pos`, ou string vazia quando o tema está sem
 /// cor (assim `Tema::c` não emite ANSI nenhum).
 fn gradiente_ou_vazio(tema: &Tema, pos: f64) -> String {
-    if tema.cor_ativa { gradiente(pos) } else { String::new() }
+    if tema.cor_ativa {
+        gradiente(pos)
+    } else {
+        String::new()
+    }
 }
 
 /// `~/Jogos` lê melhor que `/home/usuario/Jogos` e economiza colunas.
@@ -843,7 +935,11 @@ impl BarraProgresso {
             if i < cheio {
                 let bruto = (i as f64 / (largura.max(2) - 1) as f64) + fase;
                 let ciclo = bruto % 1.0;
-                let onda = if ciclo < 0.5 { ciclo * 2.0 } else { (1.0 - ciclo) * 2.0 };
+                let onda = if ciclo < 0.5 {
+                    ciclo * 2.0
+                } else {
+                    (1.0 - ciclo) * 2.0
+                };
                 if self.tema.cor_ativa {
                     saida.push_str(&gradiente(onda));
                 }
@@ -864,32 +960,66 @@ impl BarraProgresso {
     /// Atualiza a barra com `feito` bytes processados (de `total_bytes`).
     /// `velocidade_bps`/`eta_segundos` vêm de fora (já calculados a partir
     /// de dados reais do processo de conversão — a barra só desenha).
-    pub fn atualizar(&self, feito: u64, velocidade_bps: f64, eta_segundos: Option<f64>, detalhe: &str) {
+    pub fn atualizar(
+        &self,
+        feito: u64,
+        velocidade_bps: f64,
+        eta_segundos: Option<f64>,
+        detalhe: &str,
+    ) {
         if !self.interativo {
             return; // sem TTY: só a linha final importa, ver `finalizar`
         }
 
-        let pct = if self.total_bytes > 0 { (feito as f64 / self.total_bytes as f64).min(1.0) } else { 0.0 };
+        let pct = if self.total_bytes > 0 {
+            (feito as f64 / self.total_bytes as f64).min(1.0)
+        } else {
+            0.0
+        };
         let colunas = colunas_terminal();
-        let rotulo_completo = if self.emoji.is_empty() { self.rotulo.clone() } else { format!("{} {}", self.emoji, self.rotulo) };
+        let rotulo_completo = if self.emoji.is_empty() {
+            self.rotulo.clone()
+        } else {
+            format!("{} {}", self.emoji, self.rotulo)
+        };
 
         let mut largura_barra = LARGURA_BARRA;
         while largura_barra > 8
-            && largura_visivel(&format!("  {rotulo_completo} [{}] 100.0%", "\u{2500}".repeat(largura_barra))) > colunas.saturating_sub(1)
+            && largura_visivel(&format!(
+                "  {rotulo_completo} [{}] 100.0%",
+                "\u{2500}".repeat(largura_barra)
+            )) > colunas.saturating_sub(1)
         {
             largura_barra -= 2;
         }
 
-        let essencial_largura = largura_visivel(&format!("  {rotulo_completo} [{}] 100.0%", "\u{2500}".repeat(largura_barra)));
+        let essencial_largura = largura_visivel(&format!(
+            "  {rotulo_completo} [{}] 100.0%",
+            "\u{2500}".repeat(largura_barra)
+        ));
         let mut sobra = colunas.saturating_sub(essencial_largura).saturating_sub(1);
 
         let bytes_txt = format!("  {}/{}", fmt_bytes(feito), fmt_bytes(self.total_bytes));
         let vel_txt = format!("  {}", fmt_velocidade(velocidade_bps));
-        let eta_txt = format!("  ETA {}", eta_segundos.map(fmt_tempo).unwrap_or_else(|| "N/D".to_string()));
-        let det_txt = if detalhe.is_empty() { String::new() } else { format!("  {}", cortar(detalhe, 18)) };
+        let eta_txt = format!(
+            "  ETA {}",
+            eta_segundos
+                .map(fmt_tempo)
+                .unwrap_or_else(|| "N/D".to_string())
+        );
+        let det_txt = if detalhe.is_empty() {
+            String::new()
+        } else {
+            format!("  {}", cortar(detalhe, 18))
+        };
 
         let mut extras = Vec::new();
-        for (texto, estilo) in [(&bytes_txt, None), (&vel_txt, Some(c::amarelo())), (&eta_txt, Some(c::cinza())), (&det_txt, Some(c::cinza()))] {
+        for (texto, estilo) in [
+            (&bytes_txt, None),
+            (&vel_txt, Some(c::amarelo())),
+            (&eta_txt, Some(c::cinza())),
+            (&det_txt, Some(c::cinza())),
+        ] {
             if texto.is_empty() {
                 continue;
             }
@@ -908,7 +1038,8 @@ impl BarraProgresso {
             self.tema.c("[", &[&c::cinza()]),
             self.pintar(pct, largura_barra),
             self.tema.c("]", &[&c::cinza()]),
-            self.tema.c(&format!("{:>5.1}%", pct * 100.0), &[&c::branco(), NEG])
+            self.tema
+                .c(&format!("{:>5.1}%", pct * 100.0), &[&c::branco(), NEG])
         );
         for (texto, estilo) in extras {
             match estilo {
@@ -931,7 +1062,11 @@ impl BarraProgresso {
         }
         let decorrido = self.inicio.elapsed().as_secs_f64().max(0.001);
         let vel = feito as f64 / decorrido;
-        let marca = if sucesso { self.tema.c(emo::OK(), &[]) } else { self.tema.c(emo::ERRO(), &[]) };
+        let marca = if sucesso {
+            self.tema.c(emo::OK(), &[])
+        } else {
+            self.tema.c(emo::ERRO(), &[])
+        };
         println!(
             "  {} {}: {} em {} ({})",
             marca,

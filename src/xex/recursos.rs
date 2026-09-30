@@ -43,11 +43,15 @@ const MAX_CABECALHOS: usize = 256;
 const FRAME_LZX: usize = 0x8000;
 
 fn u16_be(d: &[u8], pos: usize) -> Option<u16> {
-    Some(u16::from_be_bytes(d.get(pos..pos.checked_add(2)?)?.try_into().ok()?))
+    Some(u16::from_be_bytes(
+        d.get(pos..pos.checked_add(2)?)?.try_into().ok()?,
+    ))
 }
 
 fn u32_be(d: &[u8], pos: usize) -> Option<u32> {
-    Some(u32::from_be_bytes(d.get(pos..pos.checked_add(4)?)?.try_into().ok()?))
+    Some(u32::from_be_bytes(
+        d.get(pos..pos.checked_add(4)?)?.try_into().ok()?,
+    ))
 }
 
 fn corrompido(o_que: &str) -> Erro {
@@ -113,18 +117,29 @@ fn descomprimir(
 ) -> Resultado<Vec<u8>> {
     match compressao {
         // sem compressão: os dados são a imagem
-        0 => Ok(dados.get(..tamanho_imagem.min(dados.len())).unwrap_or(dados).to_vec()),
+        0 => Ok(dados
+            .get(..tamanho_imagem.min(dados.len()))
+            .unwrap_or(dados)
+            .to_vec()),
         // básica: pares (bytes de dados, bytes de zero)
         1 => {
-            let tam_info = u32_be(xex, formato).ok_or_else(|| corrompido("formato truncado"))? as usize;
-            let fim = formato.checked_add(tam_info).filter(|f| *f <= xex.len())
+            let tam_info =
+                u32_be(xex, formato).ok_or_else(|| corrompido("formato truncado"))? as usize;
+            let fim = formato
+                .checked_add(tam_info)
+                .filter(|f| *f <= xex.len())
                 .ok_or_else(|| corrompido("formato de arquivo além do fim"))?;
             let mut imagem = Vec::new();
             let (mut pos, mut lido) = (formato + 8, 0usize);
             while pos + 8 <= fim {
-                let (d, z) = (u32_be(xex, pos).unwrap() as usize, u32_be(xex, pos + 4).unwrap() as usize);
+                let (d, z) = (
+                    u32_be(xex, pos).unwrap() as usize,
+                    u32_be(xex, pos + 4).unwrap() as usize,
+                );
                 pos += 8;
-                let trecho = lido.checked_add(d).and_then(|f| dados.get(lido..f))
+                let trecho = lido
+                    .checked_add(d)
+                    .and_then(|f| dados.get(lido..f))
                     .ok_or_else(|| corrompido("bloco comprimido além do fim dos dados"))?;
                 if imagem.len() + d + z > tamanho_imagem.max(MAX_IMAGEM) {
                     return Err(corrompido("imagem maior que o tamanho declarado"));
@@ -139,22 +154,29 @@ fn descomprimir(
         2 => {
             let janela = u32_be(xex, formato + 8).ok_or_else(|| corrompido("formato truncado"))?;
             let janela = janela_lzx(janela)?;
-            let mut tamanho = u32_be(xex, formato + 12).ok_or_else(|| corrompido("formato truncado"))? as usize;
+            let mut tamanho =
+                u32_be(xex, formato + 12).ok_or_else(|| corrompido("formato truncado"))? as usize;
             let mut lzx = lzxd::Lzxd::new(janela);
             let mut imagem = Vec::with_capacity(tamanho_imagem);
             let mut pos = 0usize;
             while tamanho > 0 {
-                let bloco = pos.checked_add(tamanho).and_then(|f| dados.get(pos..f))
+                let bloco = pos
+                    .checked_add(tamanho)
+                    .and_then(|f| dados.get(pos..f))
                     .ok_or_else(|| corrompido("bloco LZX além do fim dos dados"))?;
-                let proximo = u32_be(bloco, 0).ok_or_else(|| corrompido("bloco LZX truncado"))? as usize;
+                let proximo =
+                    u32_be(bloco, 0).ok_or_else(|| corrompido("bloco LZX truncado"))? as usize;
                 let mut q = 24; // tamanho do próximo bloco (4) + hash SHA1 (20)
                 loop {
-                    let n = u16_be(bloco, q).ok_or_else(|| corrompido("frame LZX truncado"))? as usize;
+                    let n =
+                        u16_be(bloco, q).ok_or_else(|| corrompido("frame LZX truncado"))? as usize;
                     q += 2;
                     if n == 0 {
                         break;
                     }
-                    let frame = bloco.get(q..q + n).ok_or_else(|| corrompido("frame LZX além do bloco"))?;
+                    let frame = bloco
+                        .get(q..q + n)
+                        .ok_or_else(|| corrompido("frame LZX além do bloco"))?;
                     q += n;
                     let falta = tamanho_imagem.saturating_sub(imagem.len());
                     if falta == 0 {
@@ -170,7 +192,9 @@ fn descomprimir(
             }
             Ok(imagem)
         }
-        3 => Err(corrompido("XEX de patch (compressão delta) não tem recursos")),
+        3 => Err(corrompido(
+            "XEX de patch (compressão delta) não tem recursos",
+        )),
         _ => Err(corrompido("tipo de compressão desconhecido")),
     }
 }
@@ -195,17 +219,25 @@ pub fn extrair_recurso(xex: &[u8], nome: &str) -> Resultado<Vec<u8>> {
     let cabs = cabecalhos(xex)?;
     let seg = u32_be(xex, 16).ok_or_else(|| corrompido("cabeçalho truncado"))? as usize;
     let inicio_dados = u32_be(xex, 8).ok_or_else(|| corrompido("cabeçalho truncado"))? as usize;
-    let dados = xex.get(inicio_dados..).ok_or_else(|| corrompido("dados além do fim do arquivo"))?;
+    let dados = xex
+        .get(inicio_dados..)
+        .ok_or_else(|| corrompido("dados além do fim do arquivo"))?;
 
     // tabela de recursos: (nome de 8 bytes, endereço, tamanho)
     let tabela = valor(&cabs, ID_RECURSOS)
-        .ok_or_else(|| corrompido("não declara recursos (nome e ícone indisponíveis)"))? as usize;
-    let tam_tabela = u32_be(xex, tabela).ok_or_else(|| corrompido("tabela de recursos truncada"))? as usize;
+        .ok_or_else(|| corrompido("não declara recursos (nome e ícone indisponíveis)"))?
+        as usize;
+    let tam_tabela =
+        u32_be(xex, tabela).ok_or_else(|| corrompido("tabela de recursos truncada"))? as usize;
     let (endereco, tamanho) = (0..tam_tabela.saturating_sub(4) / 16)
         .filter_map(|i| {
             let e = xex.get(tabela + 4 + i * 16..tabela + 20 + i * 16)?;
-            let nome_e = String::from_utf8_lossy(&e[..8]).trim_end_matches('\0').to_string();
-            nome_e.eq_ignore_ascii_case(nome).then(|| (u32_be(e, 8), u32_be(e, 12)))
+            let nome_e = String::from_utf8_lossy(&e[..8])
+                .trim_end_matches('\0')
+                .to_string();
+            nome_e
+                .eq_ignore_ascii_case(nome)
+                .then(|| (u32_be(e, 8), u32_be(e, 12)))
         })
         .find_map(|(a, t)| Some((a? as usize, t? as usize)))
         .ok_or_else(|| corrompido(&format!("não tem o recurso {nome}")))?;
@@ -216,7 +248,8 @@ pub fn extrair_recurso(xex: &[u8], nome: &str) -> Resultado<Vec<u8>> {
     let compressao = u16_be(xex, formato + 6).ok_or_else(|| corrompido("formato truncado"))?;
 
     let tamanho_imagem = u32_be(xex, seg + SEG_TAMANHO_IMAGEM)
-        .ok_or_else(|| corrompido("informações de segurança truncadas"))? as usize;
+        .ok_or_else(|| corrompido("informações de segurança truncadas"))?
+        as usize;
     if tamanho_imagem > MAX_IMAGEM {
         return Err(corrompido("tamanho de imagem absurdo"));
     }
@@ -363,16 +396,23 @@ pub(crate) mod testes {
         xex[8..12].copy_from_slice(&0x1000u32.to_be_bytes());
         xex[16..20].copy_from_slice(&0x100u32.to_be_bytes());
         xex[20..24].copy_from_slice(&3u32.to_be_bytes());
-        for (i, (k, v)) in [(ID_RECURSOS, 0x300u32), (ID_FORMATO_ARQUIVO, 0x340), (ID_ENDERECO_BASE, BASE)]
-            .iter()
-            .enumerate()
+        for (i, (k, v)) in [
+            (ID_RECURSOS, 0x300u32),
+            (ID_FORMATO_ARQUIVO, 0x340),
+            (ID_ENDERECO_BASE, BASE),
+        ]
+        .iter()
+        .enumerate()
         {
             xex[24 + i * 8..28 + i * 8].copy_from_slice(&k.to_be_bytes());
             xex[28 + i * 8..32 + i * 8].copy_from_slice(&v.to_be_bytes());
         }
-        xex[0x100 + SEG_TAMANHO_IMAGEM..0x104 + SEG_TAMANHO_IMAGEM].copy_from_slice(&tamanho_imagem.to_be_bytes());
-        xex[0x100 + SEG_ENDERECO_CARGA..0x104 + SEG_ENDERECO_CARGA].copy_from_slice(&BASE.to_be_bytes());
-        xex[0x100 + SEG_CHAVE_ARQUIVO..0x110 + SEG_CHAVE_ARQUIVO].copy_from_slice(&chave_arquivo_cifrada);
+        xex[0x100 + SEG_TAMANHO_IMAGEM..0x104 + SEG_TAMANHO_IMAGEM]
+            .copy_from_slice(&tamanho_imagem.to_be_bytes());
+        xex[0x100 + SEG_ENDERECO_CARGA..0x104 + SEG_ENDERECO_CARGA]
+            .copy_from_slice(&BASE.to_be_bytes());
+        xex[0x100 + SEG_CHAVE_ARQUIVO..0x110 + SEG_CHAVE_ARQUIVO]
+            .copy_from_slice(&chave_arquivo_cifrada);
         xex[0x300..0x304].copy_from_slice(&20u32.to_be_bytes());
         let mut n = [0u8; 8];
         n[..nome.len()].copy_from_slice(nome.as_bytes());
@@ -389,7 +429,11 @@ pub(crate) mod testes {
         let recurso = b"XDBF recurso de teste 1234567890".repeat(20);
         let xex = montar_xex("4D5308BF", &recurso, 1);
         assert_eq!(extrair_recurso(&xex, "4D5308BF").unwrap(), recurso);
-        assert_eq!(extrair_recurso(&xex, "4d5308bf").unwrap(), recurso, "nome sem diferenciar caixa");
+        assert_eq!(
+            extrair_recurso(&xex, "4d5308bf").unwrap(),
+            recurso,
+            "nome sem diferenciar caixa"
+        );
     }
 
     #[test]

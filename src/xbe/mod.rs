@@ -88,12 +88,14 @@ pub fn ler_info_certificado(xbe: &[u8]) -> Resultado<InfoCertificado> {
     let base_address = ler_u32_le(xbe, OFF_BASE_ADDRESS);
     let certificate_address = ler_u32_le(xbe, OFF_CERTIFICATE_ADDRESS);
 
-    let offset_certificado = certificate_address.checked_sub(base_address).ok_or_else(|| {
-        Erro::IsoInvalida(
-            "endereço do certificado do XBE é menor que o endereço base (arquivo corrompido)"
-                .into(),
-        )
-    })? as usize;
+    let offset_certificado = certificate_address
+        .checked_sub(base_address)
+        .ok_or_else(|| {
+            Erro::IsoInvalida(
+                "endereço do certificado do XBE é menor que o endereço base (arquivo corrompido)"
+                    .into(),
+            )
+        })? as usize;
 
     let fim = offset_certificado
         .checked_add(TAMANHO_CERTIFICADO_LIDO)
@@ -107,7 +109,11 @@ pub fn ler_info_certificado(xbe: &[u8]) -> Resultado<InfoCertificado> {
     let titulo = decodificar_utf16le_ate_nul(&cert[12..92]);
     let disco_numero = u32::from_le_bytes(cert[168..172].try_into().unwrap());
 
-    Ok(InfoCertificado { title_id, titulo, disco_numero })
+    Ok(InfoCertificado {
+        title_id,
+        titulo,
+        disco_numero,
+    })
 }
 
 /// Deriva um substituto de Media ID a partir do MD5 do arquivo XBE inteiro —
@@ -139,15 +145,18 @@ fn encontrar_secao_thumbnail(xbe: &[u8]) -> Resultado<&[u8]> {
     }
     let magic = u32::from_le_bytes(xbe[0..4].try_into().unwrap());
     if magic != ASSINATURA_XBEH {
-        return Err(Erro::IsoInvalida("arquivo não começa com a assinatura XBE esperada".into()));
+        return Err(Erro::IsoInvalida(
+            "arquivo não começa com a assinatura XBE esperada".into(),
+        ));
     }
 
     let base_address = ler_u32_le(xbe, OFF_BASE_ADDRESS);
     let num_secoes = ler_u32_le(xbe, OFF_NUMBER_OF_SECTIONS);
     let secoes_address = ler_u32_le(xbe, OFF_SECTION_HEADERS_ADDRESS);
-    let offset_secoes = secoes_address.checked_sub(base_address).ok_or_else(|| {
-        Erro::IsoInvalida("endereço da tabela de seções do XBE é inválido".into())
-    })? as usize;
+    let offset_secoes = secoes_address
+        .checked_sub(base_address)
+        .ok_or_else(|| Erro::IsoInvalida("endereço da tabela de seções do XBE é inválido".into()))?
+        as usize;
 
     for nome_procurado in NOMES_SECAO_THUMBNAIL {
         for indice in 0..num_secoes {
@@ -163,15 +172,22 @@ fn encontrar_secao_thumbnail(xbe: &[u8]) -> Resultado<&[u8]> {
             let raw_size = ler_u32_le(xbe, offset_cabecalho + 16);
             let nome_address = ler_u32_le(xbe, offset_cabecalho + 20);
 
-            let Some(offset_nome) = nome_address.checked_sub(base_address) else { continue };
-            let Some(nome) = ler_string_ascii_ate_nul(xbe, offset_nome as usize) else { continue };
+            let Some(offset_nome) = nome_address.checked_sub(base_address) else {
+                continue;
+            };
+            let Some(nome) = ler_string_ascii_ate_nul(xbe, offset_nome as usize) else {
+                continue;
+            };
 
             if nome != nome_procurado {
                 continue;
             }
 
             let inicio = raw_address as usize;
-            let Some(fim) = inicio.checked_add(raw_size as usize).filter(|&f| f <= xbe.len()) else {
+            let Some(fim) = inicio
+                .checked_add(raw_size as usize)
+                .filter(|&f| f <= xbe.len())
+            else {
                 continue;
             };
             return Ok(&xbe[inicio..fim]);
@@ -289,7 +305,10 @@ mod testes {
         let b = media_id_substituto(dados);
         assert_eq!(a, b);
         assert_eq!(a.len(), 8);
-        assert!(a.chars().all(|c| c.is_ascii_hexdigit() && !c.is_ascii_lowercase()));
+        assert!(
+            a.chars()
+                .all(|c| c.is_ascii_hexdigit() && !c.is_ascii_lowercase())
+        );
     }
 
     #[test]
