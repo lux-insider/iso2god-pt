@@ -62,6 +62,10 @@ pub fn ler(xdbf: &[u8]) -> Resultado<TituloXdbf> {
         .and_then(|t| t.checked_add(24))
         .ok_or_else(|| invalido("tabelas de tamanho absurdo"))?;
 
+    // Só as entradas que cabem nos bytes: além disso nenhuma volta acharia
+    // nada, e `n` vem do arquivo (um XDBF de 88 bytes declarando 2³²
+    // entradas levava 15 s).
+    let n = n.min(xdbf.len().saturating_sub(24) / 18);
     let entrada = |ns: u16, id: u64| -> Option<&[u8]> {
         (0..n).find_map(|i| {
             let p = 24 + i * 18;

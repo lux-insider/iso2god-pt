@@ -140,3 +140,21 @@ fn b2_xbe_com_muitas_secoes_sem_nome_terminado_responde_rapido() {
         inicio.elapsed()
     );
 }
+
+/// B-3: XDBF de 88 bytes declarando 2³² entradas. Antes, 15 s de laço em
+/// release a cada leitura.
+#[test]
+fn b3_xdbf_com_contagem_absurda_responde_rapido() {
+    let mut x = vec![0u8; 88];
+    x[0..4].copy_from_slice(b"XDBF");
+    x[8..12].copy_from_slice(&u32::MAX.to_be_bytes());
+    x[12..16].copy_from_slice(&u32::MAX.to_be_bytes());
+    let inicio = Instant::now();
+    let titulo = crate::xex::xdbf::ler(&x).unwrap();
+    assert_eq!(titulo, Default::default());
+    assert!(
+        inicio.elapsed() < Duration::from_secs(5),
+        "levou {:?}",
+        inicio.elapsed()
+    );
+}
