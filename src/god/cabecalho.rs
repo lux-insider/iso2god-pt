@@ -296,7 +296,11 @@ impl EscritorCabecalho {
             self.buffer[offset] = 0;
         }
         self.escrever_hash_assinatura()?;
-        std::fs::write(caminho, self.buffer.as_slice()).ctx(Operacao::Gravar, caminho)?;
+        use std::io::Write;
+        crate::arquivo::criar(caminho)
+            .ctx(Operacao::Criar, caminho)?
+            .write_all(self.buffer.as_slice())
+            .ctx(Operacao::Gravar, caminho)?;
         Ok(())
     }
 }

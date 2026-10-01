@@ -83,7 +83,7 @@ pub fn reconstruir(gdf: &mut Gdf, origem: &Path, destino: &Path) -> Resultado<()
     remapear_raiz(&mut raiz_nova, &mut proximo_setor);
 
     let mut saida = Aberto {
-        arquivo: File::create(destino).ctx(Operacao::Criar, destino)?,
+        arquivo: crate::arquivo::criar(destino).ctx(Operacao::Criar, destino)?,
         caminho: destino,
     };
     escrever_cabecalho(

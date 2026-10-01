@@ -214,3 +214,42 @@ fn b6_ids_so_com_digitos_hexadecimais() {
         assert!(validar_id("o Title ID", bom).is_ok(), "{bom}");
     }
 }
+
+/// S-4: um link simbólico plantado no destino, com o nome que a ferramenta
+/// vai gravar (cabeçalho, ISO reconstruída, sonda de escrita do
+/// assistente). Antes, a gravação seguia o link e sobrescrevia — ou
+/// zerava — o arquivo para onde ele apontava.
+#[cfg(unix)]
+#[test]
+fn s4_link_no_destino_nao_redireciona_a_gravacao() {
+    use std::os::unix::fs::symlink;
+    let t = Temp::nova("s4");
+    let alvo = t.0.join("alvo.txt");
+    let original = b"arquivo do usuario".to_vec();
+    fs::write(&alvo, &original).unwrap();
+    let e_link = |p: &Path| fs::symlink_metadata(p).is_ok_and(|m| m.file_type().is_symlink());
+
+    let cabecalho = t.0.join("FE40C7D9CF2D599EB911");
+    symlink(&alvo, &cabecalho).unwrap();
+    crate::god::cabecalho::EscritorCabecalho::novo()
+        .gravar(&cabecalho)
+        .unwrap();
+    assert_eq!(fs::read(&alvo).unwrap(), original, "cabeçalho");
+    assert!(!e_link(&cabecalho) && fs::metadata(&cabecalho).unwrap().len() == 45_056);
+
+    let sonda = t.0.join(format!(".iso2god-escrita-{}", std::process::id()));
+    symlink(&alvo, &sonda).unwrap();
+    crate::assistente::testar_escrita(&t.0).unwrap();
+    assert_eq!(fs::read(&alvo).unwrap(), original, "sonda de escrita");
+
+    let iso = t.0.join("jogo.iso");
+    let dados = vec![0x77u8; 5000];
+    let raiz = tabela(&[(b"dados.bin", 40, dados.len() as u32, ARQ)]);
+    gravar_iso(&iso, (33, S as u32), &[(33, &raiz), (40, &dados)], 60);
+    let reconstruida = t.0.join(".iso2god-1-jogo.reconstruida.iso");
+    symlink(&alvo, &reconstruida).unwrap();
+    let mut gdf = Gdf::abrir(&iso).unwrap();
+    crate::god::reconstrucao::reconstruir(&mut gdf, &iso, &reconstruida).unwrap();
+    assert_eq!(fs::read(&alvo).unwrap(), original, "ISO reconstruída");
+    assert!(!e_link(&reconstruida));
+}

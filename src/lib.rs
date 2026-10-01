@@ -34,6 +34,7 @@ macro_rules! saida_erro {
 }
 
 pub mod analise;
+pub mod arquivo;
 pub mod assistente;
 pub mod cli;
 pub mod erro;
