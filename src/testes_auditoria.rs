@@ -374,3 +374,36 @@ fn p3_thread_que_falha_para_as_outras() {
         "{escritos} de {blocos} blocos gravados depois da falha"
     );
 }
+
+/// P-4: os hashes de cada grupo de 204 blocos vão numa mensagem só. Antes,
+/// uma mensagem por bloco de 4 KiB (262 mil por GiB disputando o canal).
+#[test]
+fn p4_hashes_de_um_grupo_numa_mensagem_so() {
+    use crate::god::{ler_e_hashear_paralelo, testes::MENSAGENS_RECEBIDAS};
+    let t = Temp::nova("p4");
+    let blocos = 2040u32; // 10 grupos de 204
+    let origem = t.0.join("origem.bin");
+    let dados: Vec<u8> = (0..blocos as usize * 4096)
+        .map(|i| (i / 4096) as u8)
+        .collect();
+    fs::write(&origem, &dados).unwrap();
+    let parte = t.0.join("Data0000");
+    File::create(&parte)
+        .unwrap()
+        .set_len(crate::god::offset_bloco_na_parte(blocos - 1) + 4096)
+        .unwrap();
+
+    MENSAGENS_RECEBIDAS.with(|m| m.set(0));
+    let reporter = crate::progresso::Reporter::novo(blocos, true);
+    let hashes = ler_e_hashear_paralelo(&origem, 0, &parte, 0, blocos, 1, &reporter).unwrap();
+    assert_eq!(MENSAGENS_RECEBIDAS.with(|m| m.get()), 10);
+
+    // os hashes continuam em ordem, um por bloco
+    assert_eq!(hashes.len(), blocos as usize);
+    for (i, h) in hashes.iter().enumerate() {
+        assert_eq!(
+            *h,
+            crate::god::hashtable::sha1(&dados[i * 4096..(i + 1) * 4096])
+        );
+    }
+}
