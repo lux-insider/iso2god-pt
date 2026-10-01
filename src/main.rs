@@ -25,6 +25,7 @@ fn main() {
 
     let cli = Cli::parse();
     let progresso_json = matches!(&cli.comando, Some(Comando::Converter(a)) if a.progresso_json);
+    instalar_gancho_de_panico(progresso_json);
 
     match executar(cli) {
         Ok(codigo) => std::process::exit(codigo),
@@ -37,6 +38,44 @@ fn main() {
             std::process::exit(1);
         }
     }
+}
+
+/// Um pânico é um defeito: em vez da mensagem padrão em inglês ("thread
+/// 'main' panicked at..."), uma mensagem em português com o local, o evento
+/// `erro` para quem lê o `--progresso-json`, e a saída incompleta apagada
+/// (o perfil de release aborta no pânico, sem passar pela limpeza normal da
+/// conversão). O código de saída continua o de um pânico.
+fn instalar_gancho_de_panico(json: bool) {
+    use std::sync::atomic::{AtomicBool, Ordering};
+    static RELATADO: AtomicBool = AtomicBool::new(false);
+    std::panic::set_hook(Box::new(move |info| {
+        // Um pânico numa thread de conversão vira, em depuração, um
+        // segundo pânico na thread principal: basta relatar o primeiro.
+        if !RELATADO.swap(true, Ordering::SeqCst) {
+            let onde = info
+                .location()
+                .map(|l| format!(" ({}:{})", l.file(), l.line()))
+                .unwrap_or_default();
+            let texto = format!(
+                "erro interno: {}{onde}. Isto é um defeito do iso2god-pt; por favor, relate em \
+                 https://github.com/lux-insider/iso2god-pt/issues",
+                mensagem_do_panico(info.payload())
+            );
+            progresso::relatar_erro_final(&texto, json);
+            if json {
+                Tema::detectar().erro(&texto);
+            }
+        }
+        iso2god::limpeza::apagar_pendentes();
+    }));
+}
+
+fn mensagem_do_panico(payload: &(dyn std::any::Any + Send)) -> &str {
+    payload
+        .downcast_ref::<&str>()
+        .copied()
+        .or_else(|| payload.downcast_ref::<String>().map(String::as_str))
+        .unwrap_or("pânico sem mensagem")
 }
 
 /// Devolve o código de saída do processo: 0 quando tudo deu certo. O
