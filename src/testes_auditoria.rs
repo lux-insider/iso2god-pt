@@ -321,3 +321,24 @@ fn b8_tabela_de_recursos_absurda_responde_rapido() {
         inicio.elapsed()
     );
 }
+
+/// B-9: miniatura XPR DXT1 de 8192×8192 (32 MiB de dados). Antes, 256 MiB
+/// de RGBA alocados e comprimidos para um PNG que nunca caberia nos 16 KiB
+/// do cabeçalho.
+#[test]
+fn b9_miniatura_maior_que_o_cabecalho_e_recusada_sem_decodificar() {
+    let lado = 8192usize;
+    let mut xpr = vec![0u8; 28 + lado * lado / 2];
+    xpr[0..4].copy_from_slice(b"XPR0");
+    let tamanho = xpr.len() as u32;
+    xpr[4..8].copy_from_slice(&tamanho.to_le_bytes());
+    xpr[8..12].copy_from_slice(&28u32.to_le_bytes());
+    xpr[25] = 12; // DXT1
+    xpr[27] = 13; // 2^13 = 8192
+    let inicio = Instant::now();
+    match crate::xbe::xpr::decodificar(&xpr) {
+        Ok(t) => panic!("decodificou {}x{}", t.largura, t.altura),
+        Err(e) => assert!(e.to_string().contains("miniatura"), "{e}"),
+    }
+    assert!(inicio.elapsed() < Duration::from_secs(1));
+}
