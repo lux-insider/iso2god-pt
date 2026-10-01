@@ -229,7 +229,12 @@ pub fn extrair_recurso(xex: &[u8], nome: &str) -> Resultado<Vec<u8>> {
         as usize;
     let tam_tabela =
         u32_be(xex, tabela).ok_or_else(|| corrompido("tabela de recursos truncada"))? as usize;
-    let (endereco, tamanho) = (0..tam_tabela.saturating_sub(4) / 16)
+    // Só as entradas que cabem no arquivo: `tam_tabela` vem dele, e uma
+    // tabela declarando 4 GiB eram 268 milhões de voltas que não achavam
+    // nada.
+    let entradas = (tam_tabela.saturating_sub(4) / 16)
+        .min(xex.len().saturating_sub(tabela.saturating_add(4)) / 16);
+    let (endereco, tamanho) = (0..entradas)
         .filter_map(|i| {
             let e = xex.get(tabela + 4 + i * 16..tabela + 20 + i * 16)?;
             let nome_e = String::from_utf8_lossy(&e[..8])
