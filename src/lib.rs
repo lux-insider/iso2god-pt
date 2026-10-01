@@ -9,3 +9,6 @@ pub mod sistema;
 pub mod terminal;
 pub mod xbe;
 pub mod xex;
+
+#[cfg(test)]
+mod testes_auditoria;
