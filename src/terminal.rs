@@ -338,9 +338,60 @@ pub fn escrever(erro: bool, texto: std::fmt::Arguments) {
 }
 
 fn colunas_terminal() -> usize {
-    terminal_size::terminal_size()
-        .map(|(w, _)| w.0 as usize)
-        .unwrap_or(80)
+    largura_terminal().unwrap_or(80)
+}
+
+/// Colunas do terminal ligado à saída padrão, à de erros ou à entrada,
+/// nessa ordem (o mesmo que o pacote `terminal_size` fazia, sem as
+/// dependências dele).
+#[cfg(unix)]
+fn largura_terminal() -> Option<usize> {
+    [libc::STDOUT_FILENO, libc::STDERR_FILENO, libc::STDIN_FILENO]
+        .into_iter()
+        .find_map(largura_de)
+}
+
+#[cfg(unix)]
+fn largura_de(fd: libc::c_int) -> Option<usize> {
+    // SAFETY: `isatty` e `ioctl(TIOCGWINSZ)` só leem o descritor e
+    // preenchem a estrutura passada
+    unsafe {
+        let mut w: libc::winsize = std::mem::zeroed();
+        (libc::isatty(fd) == 1
+            && libc::ioctl(fd, libc::TIOCGWINSZ, &mut w as *mut libc::winsize) == 0
+            && w.ws_row > 0
+            && w.ws_col > 0)
+            .then_some(w.ws_col as usize)
+    }
+}
+
+#[cfg(windows)]
+fn largura_terminal() -> Option<usize> {
+    use windows_sys::Win32::Foundation::INVALID_HANDLE_VALUE;
+    use windows_sys::Win32::System::Console::{
+        CONSOLE_SCREEN_BUFFER_INFO, GetConsoleScreenBufferInfo, GetStdHandle, STD_ERROR_HANDLE,
+        STD_INPUT_HANDLE, STD_OUTPUT_HANDLE,
+    };
+    [STD_OUTPUT_HANDLE, STD_ERROR_HANDLE, STD_INPUT_HANDLE]
+        .into_iter()
+        .find_map(|qual| {
+            // SAFETY: `GetConsoleScreenBufferInfo` só preenche a estrutura
+            // passada, e falha (devolve 0) se o handle não for um console
+            unsafe {
+                let h = GetStdHandle(qual);
+                if h.is_null() || h == INVALID_HANDLE_VALUE {
+                    return None;
+                }
+                let mut info: CONSOLE_SCREEN_BUFFER_INFO = std::mem::zeroed();
+                (GetConsoleScreenBufferInfo(h, &mut info) != 0)
+                    .then(|| (info.srWindow.Right - info.srWindow.Left + 1) as u16 as usize)
+            }
+        })
+}
+
+#[cfg(not(any(unix, windows)))]
+fn largura_terminal() -> Option<usize> {
+    None
 }
 
 // ================================================================== emoji
@@ -1118,5 +1169,38 @@ impl BarraProgresso {
             fmt_tempo(decorrido),
             fmt_velocidade(vel)
         );
+    }
+}
+
+#[cfg(test)]
+mod testes {
+    /// L-1: a largura vem do `ioctl` direto, e só de um terminal de verdade.
+    #[cfg(unix)]
+    #[test]
+    fn l1_largura_de_um_terminal_e_de_um_arquivo() {
+        // SAFETY: `openpty` cria o par de pseudoterminais com o tamanho
+        // pedido e devolve os dois descritores, fechados no fim
+        unsafe {
+            let (mut mestre, mut escravo) = (0, 0);
+            let mut w: libc::winsize = std::mem::zeroed();
+            w.ws_col = 123;
+            w.ws_row = 45;
+            assert_eq!(
+                libc::openpty(
+                    &mut mestre,
+                    &mut escravo,
+                    std::ptr::null_mut(),
+                    std::ptr::null(),
+                    &w
+                ),
+                0
+            );
+            assert_eq!(super::largura_de(escravo), Some(123));
+            libc::close(mestre);
+            libc::close(escravo);
+        }
+        let arquivo = std::fs::File::open("Cargo.toml").unwrap();
+        use std::os::unix::io::AsRawFd;
+        assert_eq!(super::largura_de(arquivo.as_raw_fd()), None);
     }
 }

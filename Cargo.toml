@@ -21,11 +21,12 @@ serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.151"
 # Embute o PNG do thumbnail no JSON de `info --json`
 base64 = "0.23.1"
-# Interface rica de terminal: largura visível de texto com emoji/acentos, e
-# detecção do tamanho do terminal (barra de progresso, caixas, gradiente)
+# Interface rica de terminal: largura visível de texto com emoji/acentos
+# (barra de progresso, caixas, gradiente). A largura do terminal vem de
+# `libc`/`windows-sys`, já usados abaixo.
 unicode-width = "0.2.2"
-terminal_size = "0.4.4"
-# Chamadas de sistema POSIX usadas em `crate::sistema`: `statvfs` (espaço
+# Chamadas de sistema POSIX usadas em `crate::sistema` e `crate::terminal`:
+# `ioctl(TIOCGWINSZ)` (largura do terminal), `statvfs` (espaço
 # livre no destino, checado ANTES de começar a converter) e `sigaction`
 # (Ctrl+C cancela de forma limpa, apagando a saída incompleta, em vez de
 # matar o processo no meio da escrita)
