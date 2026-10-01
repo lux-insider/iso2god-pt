@@ -76,9 +76,7 @@ pub fn analisar(origem: &Path) -> Resultado<InfoIso> {
             if let Ok(t) = xex::ler_titulo(&bytes) {
                 info.titulo = t.titulo;
                 if let Some(png) = t.icone_png {
-                    use base64::Engine;
-                    info.thumbnail_png_base64 =
-                        Some(base64::engine::general_purpose::STANDARD.encode(&png));
+                    info.thumbnail_png_base64 = Some(base64(&png));
                 }
             }
         }
@@ -97,9 +95,7 @@ pub fn analisar(origem: &Path) -> Resultado<InfoIso> {
                 info.total_discos = Some(1);
             }
             if let Ok(png) = xbe::extrair_thumbnail(&bytes) {
-                use base64::Engine;
-                info.thumbnail_png_base64 =
-                    Some(base64::engine::general_purpose::STANDARD.encode(&png));
+                info.thumbnail_png_base64 = Some(base64(&png));
             }
         }
     }
@@ -107,6 +103,26 @@ pub fn analisar(origem: &Path) -> Resultado<InfoIso> {
     info.ultimo_setor = gdf.analisar_diretorios()?;
 
     Ok(info)
+}
+
+/// Base64 padrão (RFC 4648, com `=` no fim), para o PNG do `info --json`.
+fn base64(dados: &[u8]) -> String {
+    const ALFABETO: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut s = String::with_capacity(dados.len().div_ceil(3) * 4);
+    for trio in dados.chunks(3) {
+        let n = trio
+            .iter()
+            .enumerate()
+            .fold(0u32, |n, (i, &b)| n | (b as u32) << (16 - 8 * i));
+        for i in 0..4 {
+            if i <= trio.len() {
+                s.push(ALFABETO[(n >> (18 - 6 * i)) as usize & 63] as char);
+            } else {
+                s.push('=');
+            }
+        }
+    }
+    s
 }
 
 impl InfoIso {
@@ -215,5 +231,28 @@ impl InfoIso {
             ));
         }
         saida!();
+    }
+}
+
+#[cfg(test)]
+mod testes {
+    /// L-2: os vetores da RFC 4648 e um trecho de PNG.
+    #[test]
+    fn l2_base64_igual_ao_padrao() {
+        for (entrada, saida) in [
+            ("", ""),
+            ("f", "Zg=="),
+            ("fo", "Zm8="),
+            ("foo", "Zm9v"),
+            ("foob", "Zm9vYg=="),
+            ("fooba", "Zm9vYmE="),
+            ("foobar", "Zm9vYmFy"),
+        ] {
+            assert_eq!(super::base64(entrada.as_bytes()), saida);
+        }
+        assert_eq!(
+            super::base64(b"\x89PNG\r\n\x1a\n\xff\xfe"),
+            "iVBORw0KGgr//g=="
+        );
     }
 }

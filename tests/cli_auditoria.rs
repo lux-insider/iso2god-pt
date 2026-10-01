@@ -389,4 +389,5 @@ fn l_dependencias_removidas() {
     let cargo = include_str!("../Cargo.toml");
     let dependencias = &cargo[cargo.find("[dependencies]").unwrap()..];
     assert!(!dependencias.contains("terminal_size"), "L-1");
+    assert!(!dependencias.contains("base64"), "L-2");
 }
