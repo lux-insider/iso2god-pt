@@ -48,28 +48,28 @@ S-4 (link simbólico plantado no destino).
 
 | # | Gravidade | Onde | Problema | Decisão |
 |---|---|---|---|---|
-| B-1 | Alta | `gdf/mod.rs:270-327`, `gdf/diretorio.rs:95-152` | tabelas de diretório compartilhadas: 9 MB de imagem viram mais de 4 GB de memória e o processo aborta | a corrigir |
-| B-2 | Alta | `xbe/mod.rs:161-196, 202-206` | busca da seção da miniatura quadrática: XBE de 8 MB trava por 239 s | a corrigir |
-| S-1 | Alta | `progresso.rs:52-56` e 111 `println!`/`eprintln!` | stdout ou stderr fechado vira pânico e aborto, sem limpeza | a corrigir |
-| S-2 | Alta | `sistema.rs:42-108` | SIGHUP (terminal fechado) e fechar a janela no Windows matam sem limpar | a corrigir |
-| S-3 | Alta | `god/mod.rs:422-430, 1042` | ao converter de novo, o cabeçalho antigo fica ao lado do `.data` novo pela metade | a corrigir |
-| B-3 | Média | `xex/xdbf.rs:65-75` | XDBF de 88 bytes declara 4 bilhões de entradas: 15 s de laço | a corrigir |
-| B-4 | Média | `gdf/mod.rs:153-190` | `default.xex`/`.xbe` lido inteiro: entrada corrompida pede até 4 GiB | a corrigir |
-| B-5 | Média | `gdf/mod.rs:270-327` | Ctrl+C e SIGTERM ignorados durante a leitura da árvore | a corrigir |
-| B-6 | Média | `god/cabecalho.rs:307-320`, `god/mod.rs:403` | `--title-id` com acento: pânico; `+1+2+3+4` aceito e vira nome de pasta | a corrigir |
-| B-7 | Média | `god/mod.rs:176-192` | `--icone` lido inteiro antes de conferir o tamanho (`/dev/zero`, a ISO por engano) | a corrigir |
-| E-1 | Média | `erro.rs:6-7` e todo `?` em E/S | erro de E/S sem arquivo nem operação, em inglês | a corrigir |
-| E-2 | Média | `main.rs`, `Cargo.toml` (`panic = "abort"`) | pânico sai em inglês, sem evento `erro` e sem apagar a saída | a corrigir |
-| S-4 | Média | `god/cabecalho.rs:299`, `god/reconstrucao.rs:57`, `assistente.rs:1064-1068` | link simbólico no destino redireciona a gravação | a corrigir |
-| P-1 | Média | `Cargo.toml` | `opt-level = "z"` deixa o SHA-1 por software 44% mais lento | a corrigir |
-| P-2 | Média | `god/reconstrucao.rs:253-286` | `--padding completa` copia 2 KiB por chamada: 1,05 milhão de chamadas por GiB | a corrigir |
-| B-8 | Baixa | `xex/recursos.rs:232-243` | tabela de recursos declarando 4 GiB: 268 milhões de voltas | a corrigir |
-| B-9 | Baixa | `xbe/xpr.rs:46-60` | miniatura XPR declarando 32768×32768 aloca 4 GiB por nada | a corrigir |
-| T-1 | Baixa | `analise.rs:120-218`, `gdf/mod.rs:314-317`, `assistente.rs` | textos da imagem (nome do jogo, nomes de arquivo) vão crus ao terminal | a corrigir |
-| P-3 | Baixa | `god/mod.rs:771-828` | uma thread que falha não para as outras | a corrigir |
-| P-4 | Baixa | `god/mod.rs:846, 873-876, 905-907` | uma mensagem de canal por bloco de 4 KiB; SHT serializada duas vezes | a corrigir |
-| L-1 | Baixa | `Cargo.toml`, `terminal.rs:299-303` | `terminal_size` puxa `rustix` e `linux-raw-sys` para ler a largura | a corrigir |
-| L-2 | Baixa | `Cargo.toml`, `analise.rs:79-81, 100-102` | `base64` inteiro para codificar um PNG | a corrigir |
+| B-1 | Alta | `gdf/mod.rs:270-327`, `gdf/diretorio.rs:95-152` | tabelas de diretório compartilhadas: 9 MB de imagem viram mais de 4 GB de memória e o processo aborta | corrigido em `5aa639a` |
+| B-2 | Alta | `xbe/mod.rs:161-196, 202-206` | busca da seção da miniatura quadrática: XBE de 8 MB trava por 239 s | corrigido em `311908b` |
+| S-1 | Alta | `progresso.rs:52-56` e 111 `println!`/`eprintln!` | stdout ou stderr fechado vira pânico e aborto, sem limpeza | corrigido em `47b3746` |
+| S-2 | Alta | `sistema.rs:42-108` | SIGHUP (terminal fechado) e fechar a janela no Windows matam sem limpar | corrigido em `ea1c6df` |
+| S-3 | Alta | `god/mod.rs:422-430, 1042` | ao converter de novo, o cabeçalho antigo fica ao lado do `.data` novo pela metade | corrigido em `56f494a` |
+| B-3 | Média | `xex/xdbf.rs:65-75` | XDBF de 88 bytes declara 4 bilhões de entradas: 15 s de laço | corrigido em `a746619` |
+| B-4 | Média | `gdf/mod.rs:153-190` | `default.xex`/`.xbe` lido inteiro: entrada corrompida pede até 4 GiB | corrigido em `2c9849a` |
+| B-5 | Média | `gdf/mod.rs:270-327` | Ctrl+C e SIGTERM ignorados durante a leitura da árvore | corrigido em `887b9ba` |
+| B-6 | Média | `god/cabecalho.rs:307-320`, `god/mod.rs:403` | `--title-id` com acento: pânico; `+1+2+3+4` aceito e vira nome de pasta | corrigido em `5df2c37` |
+| B-7 | Média | `god/mod.rs:176-192` | `--icone` lido inteiro antes de conferir o tamanho (`/dev/zero`, a ISO por engano) | corrigido em `182e830` |
+| E-1 | Média | `erro.rs:6-7` e todo `?` em E/S | erro de E/S sem arquivo nem operação, em inglês | corrigido em `060fef3` |
+| E-2 | Média | `main.rs`, `Cargo.toml` (`panic = "abort"`) | pânico sai em inglês, sem evento `erro` e sem apagar a saída | corrigido em `f850375` |
+| S-4 | Média | `god/cabecalho.rs:299`, `god/reconstrucao.rs:57`, `assistente.rs:1064-1068` | link simbólico no destino redireciona a gravação | corrigido em `259606f` |
+| P-1 | Média | `Cargo.toml` | `opt-level = "z"` deixa o SHA-1 por software 44% mais lento | corrigido em `622e7e2` |
+| P-2 | Média | `god/reconstrucao.rs:253-286` | `--padding completa` copia 2 KiB por chamada: 1,05 milhão de chamadas por GiB | corrigido em `1e0a6f6` |
+| P-4 | Média | `god/mod.rs:846, 873-876, 905-907` | uma mensagem de canal por bloco de 4 KiB: conversão 40% mais lenta | corrigido em `2ace535` |
+| B-8 | Baixa | `xex/recursos.rs:232-243` | tabela de recursos declarando 4 GiB: 268 milhões de voltas | corrigido em `12b61bb` |
+| B-9 | Baixa | `xbe/xpr.rs:46-60` | miniatura XPR declarando 32768×32768 aloca 4 GiB por nada | corrigido em `2850744` |
+| T-1 | Baixa | `analise.rs:120-218`, `gdf/mod.rs:314-317`, `assistente.rs` | textos da imagem (nome do jogo, nomes de arquivo) vão crus ao terminal | corrigido em `dee9fe2` |
+| P-3 | Baixa | `god/mod.rs:771-828` | uma thread que falha não para as outras | corrigido em `d6e08f2` |
+| L-1 | Baixa | `Cargo.toml`, `terminal.rs:299-303` | `terminal_size` puxa `rustix` e `linux-raw-sys` para ler a largura | corrigido em `65165e0` |
+| L-2 | Baixa | `Cargo.toml`, `analise.rs:79-81, 100-102` | `base64` inteiro para codificar um PNG | corrigido em `1ecb92c` |
 | N-1 | Alta | `gdf/diretorio.rs:51, 73-78` | `--padding completa` grava nomes não-ASCII como `?` | **só descrito** (muda bytes) |
 | N-2 | Média | `god/reconstrucao.rs:203-210, 229-237` | `--padding completa` casa entradas pelo nome: nomes repetidos copiam o arquivo errado | **só descrito** (muda bytes) |
 | N-3 | Baixa | `god/mod.rs:403`, `1052-1061` | `--title-id` em minúsculas: pasta em maiúsculas, nome único calculado com minúsculas | **só descrito** (muda bytes) |
@@ -80,7 +80,9 @@ S-4 (link simbólico plantado no destino).
 | C-1 | Baixa | `cli.rs`, `god/mod.rs:685-694` | `-j 1` é o padrão; `-j N` lê N regiões ao mesmo tempo | **só descrito** |
 | L-3 | Baixa | `Cargo.toml` | `clap` é a maior dependência; `thiserror 1` traz um segundo `syn` | **só descrito** |
 
-Os itens estão detalhados abaixo com o cenário e a correção proposta.
+Os itens estão detalhados abaixo com o cenário e a correção. A seção
+[Resultado da fase 2](#resultado-da-fase-2), no fim, resume as medições, os
+testes e o que fica para decisão do mantenedor.
 
 ---
 
@@ -369,14 +371,16 @@ continuam lendo e gravando até o fim da parte — até 170 MB de trabalho
 jogado fora antes de a falha aparecer. *Correção:* um sinalizador de parada
 compartilhado, consultado a cada grupo de 204 blocos.
 
-### P-4 (Baixa) — canal por bloco, SHT serializada duas vezes
+### P-4 (Média) — canal por bloco, SHT serializada duas vezes
 
 `god/mod.rs:873-876`: um envio pelo canal a cada bloco de 4 KiB (262 mil
-por GiB; 14 mil a 56 mil `futex` medidos). `god/mod.rs:905-907`: cada Sub
-Hash Table é serializada duas vezes (para gravar e para o hash).
-`god/mod.rs:846`: o buffer de 816 KiB é alocado de novo a cada parte.
+por GiB; 18.779 chamadas `futex` medidas com `-j 4`). `god/mod.rs:905-907`:
+cada Sub Hash Table é serializada duas vezes (para gravar e para o hash).
 *Correção:* enviar os hashes do grupo inteiro numa mensagem e serializar a
-SHT uma vez só.
+SHT uma vez só. Classificado como baixa na fase 1; medido na fase 2, o
+ganho foi grande (`-j 1`: 2,11 s → 1,24 s por GiB) e o item subiu para
+média. O buffer de 816 KiB alocado a cada parte (`god/mod.rs:846`) ficou
+como está: são 816 KiB a cada 170 MB convertidos.
 
 ## 5. Concorrência e E/S
 
@@ -468,3 +472,85 @@ mas pode mudar o ponto de corte do `--padding parcial` em alguma imagem.
 seja, sempre 256 MiB. O limite certo seria o tamanho declarado; apertar
 pode recusar um XEX aceito hoje (e trocar o nome e o ícone gravados), e o
 teto de 256 MiB já impede o abuso.
+
+## Resultado da fase 2
+
+Um commit por correção, da gravidade mais alta para a mais baixa, cada um
+com o teste do cenário (`src/testes_auditoria.rs`, `tests/cli_auditoria.rs`
+e testes nos próprios módulos). Cada teste foi conferido nos dois
+sentidos: falha no código de antes (os de travamento foram mortos por
+tempo: B-1 passou de 120 s e de 4 GB, B-2 e B-3 de 60 s) e passa no de
+depois. Para o E-2 e o P-3, que precisam de um pânico ou de uma falha de
+E/S no meio da conversão, há um gatilho que só existe nos testes (o do
+E-2 só na compilação de depuração, nunca no binário de release).
+
+### A regra principal
+
+Os valores de `tests/saida_golden.rs`, gravados com a 0.1.4 antes de
+qualquer correção — tamanho e SHA-1 de cada parte e de cada cabeçalho em
+seis cenários, o JSON do `info`, a sequência do `--progresso-json` e os
+códigos de saída —, continuam idênticos depois de todas elas, em
+`cargo test` e em `cargo test --release` (o perfil que vai para o usuário,
+com o P-1). Além disso, o binário de release da 0.1.4 e o final foram
+comparados numa imagem de 1 GiB com `-j 1`, `-j 4 --padding nenhuma` e
+`-j 4 --padding completa`, com título acentuado: mesmo SHA-1 em todos os
+arquivos gerados.
+
+Nada da linha de comando mudou: as mesmas opções, os mesmos códigos de
+saída (0, 1, 2 do `clap`, 130 no cancelamento e o do aborto num pânico), o
+mesmo formato do `--progresso-json` (eventos `fase`, `progresso`,
+`concluido` e `erro`, com os mesmos campos) e os mesmos nomes de pastas e
+arquivos do GOD. Mudaram só os textos das mensagens de erro (E-1, E-2), que
+agora dizem o que falhou.
+
+### Testes e clippy
+
+| | Antes | Depois |
+|---|---|---|
+| Testes de unidade | 78 | 94 |
+| Testes do programa e de integração | 12 | 27 (6 golden, 9 da auditoria; 26 em release, sem o E-2) |
+| `cargo clippy --all-targets` (Linux) | sem avisos | sem avisos |
+| `cargo clippy --all-targets --target x86_64-pc-windows-msvc` | sem avisos | sem avisos |
+
+O alvo Windows foi compilado e passou no clippy, mas não foi executado
+(não há Windows neste ambiente). Ficam sem execução real: o tratador de
+`CTRL_CLOSE_EVENT` (S-2) e a largura do console por
+`GetConsoleScreenBufferInfo` (L-1), os dois iguais aos do extract-xiso-pt.
+Vale um teste manual no Windows antes do próximo release: fechar a janela
+no meio de uma conversão e conferir que a pasta do pacote some.
+
+### Medições
+
+Linux x86_64, 4 núcleos, imagem de 1 GiB no cache, melhor de 3 a 5
+execuções (a mediana varia muito neste ambiente por causa da gravação no
+disco):
+
+| Medida | 0.1.4 | Depois |
+|---|---|---|
+| `converter -j 1` (SHA-NI) | 2,21 s | 1,17 s |
+| `converter -j 4` (SHA-NI) | 0,55 s | 0,37 s |
+| `converter -j 1` (SHA-1 por software) | 7,13 s | 2,48 s |
+| `converter -j 4 --padding completa` | 1,83 s | 1,05 s |
+| chamadas `read`/`write` no `--padding completa` | 525.620 / 526.929 | 2.356 / 3.665 |
+| pico de memória (RSS) | 10,6 MiB | 10,6 MiB |
+| binário (release) | 999.768 bytes | 1.006.984 bytes (+0,7%) |
+
+Os ganhos de velocidade vêm do P-4 (canal), do P-1 (SHA-1 sem SHA-NI) e do
+P-2 (reconstrução). O binário cresceu 7 KB, quase tudo pelas mensagens de
+erro estruturadas (E-1) e pelo gancho de pânico (E-2); o P-1 somou 744
+bytes, e o L-1 e o L-2 tiraram cerca de 7 KB e cinco pacotes da compilação
+(`terminal_size`, `rustix`, `linux-raw-sys`, `errno`, `base64`).
+
+### Para decisão do mantenedor (não aplicado)
+
+1. **N-1 e N-2** — nomes não-ASCII e nomes repetidos no
+   `--padding completa`. É o achado mais grave sem correção: o pacote sai
+   com nomes que o jogo não acha. A correção muda os bytes do pacote
+   para essas imagens (só elas), então precisa de autorização.
+2. **N-3** — normalizar o Title ID digitado em minúsculas (muda o nome do
+   pacote).
+3. **N-4, N-5** — semântica da varredura das tabelas e limite da
+   compressão básica; baixo risco, sem pressa.
+4. **C-1** — fila leitura → hash → gravação com uma leitora só, medida
+   num HD de verdade; e o padrão de `-j`.
+5. **S-5** — limpeza de ISOs reconstruídas esquecidas por um SIGKILL.
