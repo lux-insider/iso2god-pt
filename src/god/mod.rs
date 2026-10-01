@@ -420,6 +420,15 @@ fn converter_parcial(
     verificar_espaco(&opcoes.destino, tamanho_estimado_saida(blocos_necessarios))?;
 
     fs::create_dir_all(&pasta_conteudo)?;
+    // O cabeçalho é o que faz o pacote aparecer no console. O de uma
+    // conversão anterior do mesmo jogo seria sobrescrito só no fim; até lá
+    // ele ficava ao lado das partes novas pela metade, e um processo morto
+    // no meio (SIGKILL, queda de energia) deixava um pacote com cara de
+    // pronto e partes faltando. Sai antes de qualquer parte ser tocada.
+    match fs::remove_file(&arquivo_cabecalho) {
+        Err(e) if e.kind() != std::io::ErrorKind::NotFound => return Err(e.into()),
+        _ => {}
+    }
     if pasta_dados.exists() {
         reporter.aviso(&format!(
             "diretório de saída já existe, substituindo: {}",
