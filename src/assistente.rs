@@ -697,11 +697,14 @@ fn listar_isos(pasta: &Path) -> Vec<PathBuf> {
     isos
 }
 
+/// Nome do arquivo ou da pasta, pronto para exibir (ver
+/// `terminal::exibivel`).
 fn nome_de(caminho: &Path) -> String {
-    caminho
+    let nome = caminho
         .file_name()
         .map(|n| n.to_string_lossy().into_owned())
-        .unwrap_or_else(|| caminho.display().to_string())
+        .unwrap_or_else(|| caminho.display().to_string());
+    crate::terminal::exibivel(&nome).into_owned()
 }
 
 // ================================================================== ações

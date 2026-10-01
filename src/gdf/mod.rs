@@ -434,7 +434,7 @@ fn processar_diretorio(
                 Err(e) => {
                     saida_erro!(
                         "aviso: falha ao ler subdiretório '{}' (setor {setor}): {e}",
-                        tabela.entradas[indice].nome
+                        crate::terminal::exibivel(&tabela.entradas[indice].nome)
                     );
                     continue;
                 }
