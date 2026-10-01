@@ -800,6 +800,10 @@ fn escrever_partes(
     Ok(())
 }
 
+/// O que uma thread de `processar_faixa` manda: o índice local do primeiro
+/// bloco de um grupo e os hashes do grupo inteiro, ou o erro que a parou.
+type MensagemGrupo = Resultado<(u32, Vec<[u8; 20]>)>;
+
 /// Divide os `blocos_nesta_parte` blocos desta parte em até `threads` faixas
 /// contíguas, processa cada uma em uma thread separada (cada qual com seu
 /// próprio descritor de arquivo de origem e de destino) e devolve os hashes
@@ -816,7 +820,7 @@ pub(crate) fn ler_e_hashear_paralelo(
     reporter: &Reporter,
 ) -> Resultado<Vec<[u8; 20]>> {
     let threads = threads.min(blocos_nesta_parte.max(1) as usize).max(1);
-    let (tx, rx) = mpsc::channel::<Resultado<(u32, [u8; 20])>>();
+    let (tx, rx) = mpsc::channel::<MensagemGrupo>();
     // Uma thread que falha avisa as outras, que param no próximo grupo em
     // vez de ler e gravar o resto da parte (até 170 MB) à toa.
     let parar = AtomicBool::new(false);
@@ -851,10 +855,17 @@ pub(crate) fn ler_e_hashear_paralelo(
         let mut hashes: Vec<Option<[u8; 20]>> = vec![None; blocos_nesta_parte as usize];
         let mut erro = None;
         for mensagem in rx {
+            #[cfg(test)]
+            testes::MENSAGENS_RECEBIDAS.with(|m| m.set(m.get() + 1));
             match mensagem {
-                Ok((indice_local, hash)) => {
-                    hashes[indice_local as usize] = Some(hash);
-                    reporter.inc(1);
+                Ok((indice_local, grupo)) => {
+                    let n = grupo.len();
+                    for (destino, hash) in
+                        hashes[indice_local as usize..][..n].iter_mut().zip(grupo)
+                    {
+                        *destino = Some(hash);
+                    }
+                    reporter.inc(n as u64);
                 }
                 Err(e) => {
                     erro.get_or_insert(e);
@@ -880,7 +891,7 @@ fn processar_faixa(
     caminho_parte: &Path,
     indice_global_inicial: u32,
     faixa: std::ops::Range<u32>,
-    tx: &mpsc::Sender<Resultado<(u32, [u8; 20])>>,
+    tx: &mpsc::Sender<MensagemGrupo>,
     parar: &AtomicBool,
 ) -> Resultado<()> {
     let (inicio_local, fim_local) = (faixa.start, faixa.end);
@@ -934,10 +945,13 @@ fn processar_faixa(
             panic!("pânico de teste");
         }
 
-        for (k, bloco) in trecho.chunks_exact(tamanho_bloco).enumerate() {
-            tx.send(Ok((indice_local + k as u32, hashtable::sha1(bloco))))
-                .ok();
-        }
+        // Os hashes do grupo vão numa mensagem só (antes, uma por bloco de
+        // 4 KiB: 262 mil por GiB disputando o canal).
+        let grupo = trecho
+            .chunks_exact(tamanho_bloco)
+            .map(hashtable::sha1)
+            .collect();
+        tx.send(Ok((indice_local, grupo))).ok();
         indice_local += n as u32;
     }
 
@@ -968,12 +982,13 @@ fn montar_e_escrever_hashtables(
             sht.adicionar(*hash)?;
         }
 
+        let bytes = sht.para_bytes();
         arquivo
             .seek(SeekFrom::Start(offset_sht_na_parte(indice_sht)))
-            .and_then(|_| arquivo.write_all(&sht.para_bytes()))
+            .and_then(|_| arquivo.write_all(&bytes))
             .ctx(Operacao::Gravar, caminho_parte)?;
 
-        mht.adicionar(hashtable::sha1(&sht.para_bytes()))?;
+        mht.adicionar(hashtable::sha1(&bytes))?;
     }
 
     arquivo
@@ -1168,6 +1183,13 @@ pub(crate) mod testes {
     /// `processar_faixa`): só a do teste que pediu.
     pub(crate) static FALHA_DE_TESTE: std::sync::Mutex<Option<PathBuf>> =
         std::sync::Mutex::new(None);
+
+    thread_local! {
+        /// Mensagens que `ler_e_hashear_paralelo` recebeu das threads,
+        /// contadas na thread que a chamou.
+        pub(crate) static MENSAGENS_RECEBIDAS: std::cell::Cell<usize> =
+            const { std::cell::Cell::new(0) };
+    }
 
     pub(crate) fn falha_de_teste(caminho_parte: &Path) -> bool {
         FALHA_DE_TESTE
