@@ -8,7 +8,7 @@
 //! *original* (com os setores antigos) continua servindo só para saber de
 //! onde ler os bytes de cada arquivo. As duas árvores têm exatamente a
 //! mesma forma — só os campos `setor`/`tamanho` da cópia mudam — então dá
-//! para percorrer as duas em conjunto, casando entradas pelo nome.
+//! para percorrer as duas em conjunto, casando as entradas pela posição.
 
 use std::fs::File;
 use std::io::{Read, Seek, SeekFrom, Write};
@@ -220,9 +220,14 @@ fn escrever_tabelas(saida: &mut Aberto, tabela: &TabelaDiretorio) -> Resultado<(
 
 /// Copia os dados de cada arquivo do local original (via `tabela_original`,
 /// com os setores antigos) para o novo local (via `tabela_nova`, com os
-/// setores remapeados), casando as duas árvores por nome em cada nível —
-/// elas têm exatamente a mesma forma, só os setores mudaram. Equivalente a
-/// `Iso2God.writeFiles`.
+/// setores remapeados). Equivalente a `Iso2God.writeFiles`.
+///
+/// As duas árvores têm exatamente a mesma forma (a nova é um clone da
+/// original, só com os setores trocados), então a entrada de índice `i` de
+/// uma é a de índice `i` da outra. Casar pelo nome, como antes, dava o
+/// arquivo errado quando dois nomes viravam o mesmo texto: "Pão.txt" e
+/// "Pâo.txt" viram "P?o.txt", e a busca sem diferenciar maiúsculas junta
+/// "LEIA.TXT" e "leia.txt" — o segundo recebia os dados do primeiro.
 fn escrever_arquivos(
     saida: &mut Aberto,
     origem: &mut Aberto,
@@ -230,45 +235,41 @@ fn escrever_arquivos(
     tabela_original: &TabelaDiretorio,
     tabela_nova: &TabelaDiretorio,
 ) -> Resultado<()> {
-    for entrada_nova in &tabela_nova.entradas {
-        if entrada_nova.eh_diretorio() {
+    if tabela_original.entradas.len() != tabela_nova.entradas.len() {
+        return Err(Erro::IsoInvalida(format!(
+            "a tabela de diretório do setor {} mudou de forma durante a reconstrução",
+            tabela_original.setor
+        )));
+    }
+    let pares = || tabela_original.entradas.iter().zip(&tabela_nova.entradas);
+
+    for (original, nova) in pares() {
+        if nova.eh_diretorio() {
             continue;
         }
-        let entrada_original = tabela_original
-            .encontrar(&entrada_nova.nome)
-            .ok_or_else(|| {
-                Erro::IsoInvalida(format!(
-                    "entrada '{}' não encontrada na árvore original durante a reconstrução",
-                    entrada_nova.nome
-                ))
-            })?;
-
         copiar_arquivo(
             saida,
             origem,
             deslocamento_raiz_origem,
-            entrada_original.setor,
-            entrada_nova.setor,
-            entrada_original.tamanho,
+            original.setor,
+            nova.setor,
+            original.tamanho,
         )?;
     }
 
-    for entrada_nova in &tabela_nova.entradas {
-        if !entrada_nova.eh_diretorio() {
+    for (original, nova) in pares() {
+        if !nova.eh_diretorio() {
             continue;
         }
-        let Some(sub_nova) = &entrada_nova.subdiretorio else {
+        let Some(sub_nova) = &nova.subdiretorio else {
             continue;
         };
-        let sub_original = tabela_original
-            .encontrar(&entrada_nova.nome)
-            .and_then(|e| e.subdiretorio.as_ref())
-            .ok_or_else(|| {
-                Erro::IsoInvalida(format!(
-                    "subdiretório '{}' não encontrado na árvore original durante a reconstrução",
-                    entrada_nova.nome
-                ))
-            })?;
+        let sub_original = original.subdiretorio.as_ref().ok_or_else(|| {
+            Erro::IsoInvalida(format!(
+                "subdiretório '{}' não encontrado na árvore original durante a reconstrução",
+                nova.nome
+            ))
+        })?;
         escrever_arquivos(
             saida,
             origem,

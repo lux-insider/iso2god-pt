@@ -306,3 +306,85 @@ fn b_nome_utf8_com_acento_sai_com_os_mesmos_bytes() {
     let sub_lidas = entradas(&imagem, p.setor, p.tamanho);
     assert_eq!(dados(&imagem, achar(&sub_lidas, dentro)), &acao[..]);
 }
+/// c) Nomes que só diferem por acento, em Latin-1 e em UTF-8: "Pão.txt" e
+/// "Pâo.txt" viravam o mesmo texto ("P?o.txt", "P??o.txt"), e a
+/// reconstrução, que casava a árvore nova com a antiga pelo texto do nome,
+/// copiava para o segundo arquivo os dados do primeiro.
+#[test]
+fn c_nomes_que_so_diferem_por_acento_mantem_cada_um_os_seus_dados() {
+    let t = Temp::nova("acento");
+    let nomes: [&[u8]; 4] = [
+        b"P\xe3o.txt",
+        b"P\xe2o.txt",
+        "Pão.txt".as_bytes(),
+        "Pâo.txt".as_bytes(),
+    ];
+    let conteudos: Vec<Vec<u8>> = (0..4)
+        .map(|i| bytes(10 + i, 3_000 + 1_500 * i as usize))
+        .collect();
+    let ents: Vec<Ent> = nomes
+        .iter()
+        .enumerate()
+        .map(|(i, nome)| Ent {
+            nome,
+            setor: 50 + 10 * i as u32,
+            tamanho: conteudos[i].len() as u32,
+            attr: ARQ,
+        })
+        .collect();
+    let raiz_origem = tabela(&ents);
+    let mut partes: Vec<(u32, &[u8])> = vec![(33, &raiz_origem)];
+    for (i, c) in conteudos.iter().enumerate() {
+        partes.push((50 + 10 * i as u32, c));
+    }
+    let iso = t.0.join("acento.iso");
+    gravar_iso(&iso, &partes, 100);
+
+    let imagem = converter_completa(&t, &iso);
+    let lidas = raiz(&imagem);
+    assert_eq!(lidas.len(), 4);
+    for (nome, conteudo) in nomes.iter().zip(&conteudos) {
+        let e = achar(&lidas, nome);
+        assert!(
+            dados(&imagem, e) == &conteudo[..],
+            "{:?} ficou com dados que não são os seus",
+            String::from_utf8_lossy(nome)
+        );
+    }
+}
+
+/// O outro lado do N-2: a busca pelo nome também não diferenciava
+/// maiúsculas, e "LEIA.TXT" e "leia.txt" na mesma pasta também trocavam
+/// os dados. O XDVDFS compara nomes sem diferenciar maiúsculas, então
+/// uma imagem assim não é válida (o console só acha um dos dois), mas o
+/// pacote não deve copiar um arquivo por cima do outro.
+#[test]
+fn d_nomes_que_so_diferem_por_maiusculas_mantem_cada_um_os_seus_dados() {
+    let t = Temp::nova("caixa");
+    let maior = bytes(20, 6_000);
+    let menor = bytes(21, 2_500);
+    let raiz_origem = tabela(&[
+        Ent {
+            nome: b"LEIA.TXT",
+            setor: 50,
+            tamanho: maior.len() as u32,
+            attr: ARQ,
+        },
+        Ent {
+            nome: b"leia.txt",
+            setor: 60,
+            tamanho: menor.len() as u32,
+            attr: ARQ,
+        },
+    ]);
+    let iso = t.0.join("caixa.iso");
+    gravar_iso(&iso, &[(33, &raiz_origem), (50, &maior), (60, &menor)], 80);
+
+    let imagem = converter_completa(&t, &iso);
+    let lidas = raiz(&imagem);
+    assert_eq!(dados(&imagem, achar(&lidas, b"LEIA.TXT")), &maior[..]);
+    assert!(
+        dados(&imagem, achar(&lidas, b"leia.txt")) == &menor[..],
+        "leia.txt ficou com os dados de LEIA.TXT"
+    );
+}
