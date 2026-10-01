@@ -454,6 +454,13 @@ fn converter_parcial(
         fs::remove_dir_all(&pasta_dados).ctx(Operacao::Apagar, &pasta_dados)?;
     }
     fs::create_dir_all(&pasta_dados).ctx(Operacao::CriarPasta, &pasta_dados)?;
+    // Se o programa entrar em pânico daqui até o fim desta função, o gancho
+    // de pânico apaga a saída (erro e cancelamento passam pela limpeza
+    // abaixo).
+    let _em_andamento = (
+        crate::limpeza::registrar(&pasta_dados, &opcoes.destino),
+        crate::limpeza::registrar(&arquivo_cabecalho, &opcoes.destino),
+    );
 
     // A partir daqui já existe saída no disco: qualquer falha (inclusive um
     // Ctrl+C) precisa passar pela limpeza, senão fica para trás uma pasta
@@ -636,6 +643,7 @@ fn converter_completa(opcoes: &OpcoesConversao, gdf: &mut Gdf) -> Resultado<()> 
         std::process::id()
     ));
 
+    let _em_andamento = crate::limpeza::registrar(&caminho_reconstruida, &opcoes.destino);
     if let Err(e) = reconstrucao::reconstruir(gdf, &opcoes.origem, &caminho_reconstruida) {
         fs::remove_file(&caminho_reconstruida).ok();
         return Err(e);
@@ -905,6 +913,12 @@ fn processar_faixa(
             .seek(SeekFrom::Start(offset_bloco_na_parte(indice_local)))
             .and_then(|_| saida.write_all(trecho))
             .ctx(Operacao::Gravar, caminho_parte)?;
+        // Só nos testes (compilação de depuração): um pânico no meio da
+        // gravação, para conferir o gancho de pânico de `main.rs`.
+        #[cfg(debug_assertions)]
+        if std::env::var_os("ISO2GOD_PANICO_DE_TESTE").is_some() {
+            panic!("pânico de teste");
+        }
 
         for (k, bloco) in trecho.chunks_exact(tamanho_bloco).enumerate() {
             tx.send(Ok((indice_local + k as u32, hashtable::sha1(bloco))))

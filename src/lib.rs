@@ -39,6 +39,7 @@ pub mod cli;
 pub mod erro;
 pub mod gdf;
 pub mod god;
+pub mod limpeza;
 pub mod progresso;
 pub mod sistema;
 pub mod terminal;

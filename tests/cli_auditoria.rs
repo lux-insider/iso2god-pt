@@ -268,3 +268,45 @@ fn e1_erro_de_es_diz_arquivo_e_operacao() {
         "{texto}"
     );
 }
+
+/// E-2: um pânico no meio da gravação. Antes: mensagem padrão do Rust em
+/// inglês, nenhum evento `erro` para quem lê o progresso e a parte pela
+/// metade no destino. O pânico é provocado por uma variável que só existe
+/// na compilação de depuração (a dos testes).
+#[cfg(debug_assertions)]
+#[test]
+fn e2_panico_vira_evento_erro_em_portugues_e_apaga_a_saida() {
+    let t = Temp::nova("e2");
+    let iso = iso_grande(&t.0, 64);
+    let destino = t.0.join("destino");
+    let saida = converter(&iso, &destino)
+        .env("ISO2GOD_PANICO_DE_TESTE", "1")
+        .output()
+        .unwrap();
+    assert!(!saida.status.success());
+    assert_ne!(saida.status.code(), Some(1), "pânico não é um erro comum");
+
+    let stdout = String::from_utf8(saida.stdout).unwrap();
+    let erros: Vec<serde_json::Value> = stdout
+        .lines()
+        .filter_map(|l| serde_json::from_str::<serde_json::Value>(l).ok())
+        .filter(|v| v["evento"] == "erro")
+        .collect();
+    assert_eq!(erros.len(), 1, "um evento erro: {stdout}");
+    let mensagem = erros[0]["mensagem"].as_str().unwrap();
+    assert!(
+        mensagem.starts_with("erro interno: pânico de teste") && mensagem.contains("relate"),
+        "{mensagem}"
+    );
+    let stderr = String::from_utf8(saida.stderr).unwrap();
+    assert!(!stderr.contains("panicked"), "{stderr}");
+    assert!(
+        fs::read_dir(&destino).map_or(true, |mut d| d.next().is_none()),
+        "as pastas do pacote também saem"
+    );
+    assert!(
+        arquivos(&destino).is_empty(),
+        "sobrou saída: {:?}",
+        arquivos(&destino).iter().map(|a| &a.0).collect::<Vec<_>>()
+    );
+}
