@@ -322,3 +322,63 @@ fn p1_hashes_otimizados_para_velocidade_no_release() {
         assert!(cargo.contains(&secao), "falta {secao}");
     }
 }
+
+/// ISO Xsf com um `default.xbe` mínimo (só o certificado) com `titulo`.
+fn iso_com_xbe(pasta: &Path, titulo: &str) -> PathBuf {
+    let mut xbe = vec![0u8; 0x400];
+    xbe[0..4].copy_from_slice(b"XBEH");
+    xbe[260..264].copy_from_slice(&0x1_0000u32.to_le_bytes());
+    xbe[280..284].copy_from_slice(&0x1_0200u32.to_le_bytes());
+    xbe[0x208..0x20C].copy_from_slice(&0x4D53_0064u32.to_le_bytes());
+    let nome: Vec<u8> = titulo.encode_utf16().flat_map(u16::to_le_bytes).collect();
+    xbe[0x20C..0x20C + nome.len()].copy_from_slice(&nome);
+
+    let mut raiz = vec![0xFFu8; S as usize];
+    raiz[0..4].copy_from_slice(&[0, 0, 0, 0]);
+    raiz[4..8].copy_from_slice(&40u32.to_le_bytes());
+    raiz[8..12].copy_from_slice(&(xbe.len() as u32).to_le_bytes());
+    raiz[12] = 0;
+    raiz[13] = 11;
+    raiz[14..25].copy_from_slice(b"default.xbe");
+    let caminho = pasta.join("xbe.iso");
+    let mut f = File::create(&caminho).unwrap();
+    f.set_len(60 * S).unwrap();
+    let mut d = vec![0u8; S as usize];
+    d[0..20].copy_from_slice(b"MICROSOFT*XBOX*MEDIA");
+    d[20..24].copy_from_slice(&33u32.to_le_bytes());
+    d[24..28].copy_from_slice(&(S as u32).to_le_bytes());
+    f.seek(SeekFrom::Start(32 * S)).unwrap();
+    f.write_all(&d).unwrap();
+    f.write_all(&raiz).unwrap();
+    f.seek(SeekFrom::Start(40 * S)).unwrap();
+    f.write_all(&xbe).unwrap();
+    caminho
+}
+
+/// T-1: o nome do jogo vem do XBE (ou do XDBF) e ia cru para o terminal:
+/// um título com sequências de escape limpava a tela, trocava o título da
+/// janela ou disfarçava o texto. O JSON continua com o texto como ele é.
+#[test]
+fn t1_texto_da_imagem_nao_vai_cru_para_o_terminal() {
+    let t = Temp::nova("t1");
+    let titulo = "Jogo\u{1b}]0;janela\u{7}\u{1b}[2J\u{202E}fim";
+    let iso = iso_com_xbe(&t.0, titulo);
+
+    let saida = Command::new(EXE).arg("info").arg(&iso).output().unwrap();
+    assert_eq!(saida.status.code(), Some(0));
+    let texto = String::from_utf8(saida.stdout).unwrap();
+    assert!(texto.contains("Jogo"), "{texto}");
+    for c in ['\u{1b}', '\u{7}', '\u{202E}'] {
+        assert!(!texto.contains(c), "{c:?} cru na saída: {texto:?}");
+    }
+    assert!(texto.contains("\\u{1b}]0;janela"), "{texto}");
+
+    let json = Command::new(EXE)
+        .arg("info")
+        .arg(&iso)
+        .arg("--json")
+        .output()
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&json.stdout).unwrap();
+    assert_eq!(v["titulo"], titulo);
+}
