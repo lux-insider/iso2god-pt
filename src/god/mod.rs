@@ -1,6 +1,6 @@
 pub mod cabecalho;
 pub mod hashtable;
-mod reconstrucao;
+pub(crate) mod reconstrucao;
 
 use std::fs::{self, File, OpenOptions};
 use std::io::{Read, Seek, SeekFrom, Write};
@@ -774,8 +774,8 @@ fn escrever_partes(
 
         let caminho_parte_atual = caminho_parte(pasta_dados, indice_parte);
         {
-            let arquivo =
-                File::create(&caminho_parte_atual).ctx(Operacao::Criar, &caminho_parte_atual)?;
+            let arquivo = crate::arquivo::criar(&caminho_parte_atual)
+                .ctx(Operacao::Criar, &caminho_parte_atual)?;
             arquivo
                 .set_len(tamanho_parte)
                 .ctx(Operacao::Gravar, &caminho_parte_atual)?;

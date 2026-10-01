@@ -1059,9 +1059,12 @@ fn escolher_destino(tema: &Tema, padrao: &Path) -> Resultado<Passo<PathBuf>> {
 /// Confirma que dá para escrever na pasta criando e apagando um arquivo
 /// vazio — permissão de diretório sozinha mente em montagem só-leitura, em
 /// sistema de arquivos cheio e em pasta de rede.
-fn testar_escrita(pasta: &Path) -> io::Result<()> {
+///
+/// A sonda é criada sem seguir link: um link plantado com o nome dela
+/// zerava o arquivo para onde apontava.
+pub(crate) fn testar_escrita(pasta: &Path) -> io::Result<()> {
     let sonda = pasta.join(format!(".iso2god-escrita-{}", std::process::id()));
-    std::fs::File::create(&sonda)?;
+    crate::arquivo::criar(&sonda)?;
     std::fs::remove_file(&sonda)
 }
 
