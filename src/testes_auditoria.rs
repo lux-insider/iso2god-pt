@@ -197,3 +197,20 @@ fn b5_cancelamento_interrompe_a_leitura_da_arvore() {
         "{resultado:?}"
     );
 }
+
+/// B-6: `--title-id` com acento entrava em pânico; com sinal (`+1+2+3+4`)
+/// passava e virava nome de pasta.
+#[test]
+fn b6_ids_so_com_digitos_hexadecimais() {
+    use crate::god::cabecalho::validar_id;
+    for ruim in ["€1", "+1+2+3+4", "4D53+8BF", "4D5308B ", "4D5308BG", "ÁÁÁÁ"] {
+        let r = std::panic::catch_unwind(|| validar_id("o Title ID", ruim));
+        assert!(
+            matches!(r, Ok(Err(_))),
+            "{ruim:?} tinha que ser recusado com erro"
+        );
+    }
+    for bom in ["4D5308BF", "4d5308bf", "00000000", "FFFFFFFF"] {
+        assert!(validar_id("o Title ID", bom).is_ok(), "{bom}");
+    }
+}

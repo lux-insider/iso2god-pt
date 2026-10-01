@@ -304,17 +304,27 @@ impl EscritorCabecalho {
 /// Decodifica uma string hexadecimal em bytes, equivalente a
 /// `ConHeaderWriter.hexStringToBytes` — mas retornando erro em vez de
 /// lançar exceção para uma entrada malformada.
+///
+/// Só dígitos hexadecimais ASCII: fatiar a string por byte entrava em
+/// pânico no meio de um caractere acentuado (`--title-id '€1'`), e
+/// `from_str_radix` aceita sinal (`+1+2+3+4` passava e virava nome de
+/// pasta).
 fn hex_para_bytes(hex: &str) -> Resultado<Vec<u8>> {
+    if !hex.bytes().all(|b| b.is_ascii_hexdigit()) {
+        return Err(Erro::IsoInvalida(format!(
+            "string hexadecimal inválida: {hex:?}"
+        )));
+    }
     if !hex.len().is_multiple_of(2) {
         return Err(Erro::IsoInvalida(format!(
             "string hexadecimal com tamanho ímpar: {hex:?}"
         )));
     }
-    (0..hex.len())
-        .step_by(2)
-        .map(|i| {
-            u8::from_str_radix(&hex[i..i + 2], 16)
-                .map_err(|_| Erro::IsoInvalida(format!("string hexadecimal inválida: {hex:?}")))
+    hex.as_bytes()
+        .chunks_exact(2)
+        .map(|par| {
+            let digito = |b: u8| (b as char).to_digit(16).unwrap_or(0) as u8;
+            Ok(digito(par[0]) << 4 | digito(par[1]))
         })
         .collect()
 }
