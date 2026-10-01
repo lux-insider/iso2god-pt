@@ -18,7 +18,7 @@
 //!   destino gravável, espaço livre), porque descobrir tarde aqui custa uma
 //!   conversão de vários GB.
 
-use std::io::{self, ErrorKind, IsTerminal, Write};
+use std::io::{self, ErrorKind, IsTerminal};
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 
@@ -89,7 +89,7 @@ pub fn executar() -> Resultado<u32> {
         }
     }
 
-    println!(
+    saida!(
         "\n  {}  {}\n",
         emo::SAIR(),
         tema.texto_gradiente("Até a próxima!", 0.0)
@@ -106,7 +106,7 @@ type ItemMenu = (&'static str, &'static str, &'static str, &'static str);
 type Grupo<'a> = (&'static str, &'static str, &'a [ItemMenu]);
 
 fn mostrar_menu(tema: &Tema) {
-    println!(
+    saida!(
         "{}",
         tema.caixa_titulo_com(
             &format!("iso2god  ·  v{}", env!("CARGO_PKG_VERSION")),
@@ -131,8 +131,8 @@ fn mostrar_menu(tema: &Tema) {
             &format!("{} livres em {}", fmt_bytes(livre), encurtar_home(&casa)),
         ));
     }
-    println!("\n{estado}\n");
-    println!("{}", tema.regua_gradiente(LARGURA));
+    saida!("\n{estado}\n");
+    saida!("{}", tema.regua_gradiente(LARGURA));
 
     let converter = [
         ("1", emo::APP(), "ISO para GOD", "assistente guiado"),
@@ -155,30 +155,30 @@ fn mostrar_menu(tema: &Tema) {
     for (indice, (titulo, nota, itens)) in grupos.iter().enumerate() {
         let ini = indice as f64 / total;
         let fim = (indice + 1) as f64 / total;
-        println!("\n{}", tema.cabeca_grupo(titulo, nota, (ini, fim)));
+        saida!("\n{}", tema.cabeca_grupo(titulo, nota, (ini, fim)));
         // a chave de cada item fica no meio da faixa do seu grupo, então a
         // cor também diz a que seção a linha pertence
         let cor_chave = tema.cor_do_gradiente((ini + fim) / 2.0);
         for (tecla, emoji, rotulo, descricao) in itens.iter() {
-            println!(
+            saida!(
                 "{}",
                 tema.opcao_com(tecla, rotulo, emoji, cor_chave.as_deref(), descricao)
             );
         }
     }
 
-    println!(
+    saida!(
         "\n{}",
         tema.opcao("0", "Sair", emo::SAIR(), Some(&c::vermelho()))
     );
-    println!("\n{}", tema.regua(LARGURA));
+    saida!("\n{}", tema.regua(LARGURA));
 }
 
 /// Cabeçalho de uma tela de ação: caixa de título e uma linha explicando o
 /// que ela faz, para a tela não depender de o usuário lembrar do menu.
 fn tela(tema: &Tema, titulo: &str, emoji: &str, descricao: &str) {
-    println!("{}", tema.caixa_titulo(titulo, emoji, LARGURA, true));
-    println!("{}", tema.c(&format!("  {descricao}"), &[&c::cinza(), ITA]));
+    saida!("{}", tema.caixa_titulo(titulo, emoji, LARGURA, true));
+    saida!("{}", tema.c(&format!("  {descricao}"), &[&c::cinza(), ITA]));
 }
 
 fn tela_sobre(tema: &Tema) {
@@ -188,12 +188,12 @@ fn tela_sobre(tema: &Tema) {
         emo::ESTRELA(),
         "Converte imagens ISO de Xbox/Xbox 360 em containers GOD.",
     );
-    println!();
-    println!(
+    saida!();
+    saida!(
         "{}",
         tema.campo("Versão", env!("CARGO_PKG_VERSION"), emo::APP(), 18)
     );
-    println!(
+    saida!(
         "{}",
         tema.campo(
             "Formato de saída",
@@ -202,7 +202,7 @@ fn tela_sobre(tema: &Tema) {
             18
         )
     );
-    println!(
+    saida!(
         "{}",
         tema.campo(
             "Detecção",
@@ -212,7 +212,7 @@ fn tela_sobre(tema: &Tema) {
         )
     );
 
-    println!(
+    saida!(
         "{}",
         tema.etapa(None, "Mesmas operações pela linha de comando", None)
     );
@@ -225,11 +225,11 @@ fn tela_sobre(tema: &Tema) {
         ),
         ("iso2god converter --help", "todas as flags"),
     ] {
-        println!("{}", tema.campo(comando, descricao, "", 42));
+        saida!("{}", tema.campo(comando, descricao, "", 42));
     }
 
-    println!("{}", tema.etapa(None, "Estratégias de padding", None));
-    println!(
+    saida!("{}", tema.etapa(None, "Estratégias de padding", None));
+    saida!(
         "{}",
         tema.opcao_com(
             "1",
@@ -239,7 +239,7 @@ fn tela_sobre(tema: &Tema) {
             "converte o volume inteiro, como está"
         )
     );
-    println!(
+    saida!(
         "{}",
         tema.opcao_com(
             "2",
@@ -249,7 +249,7 @@ fn tela_sobre(tema: &Tema) {
             "remove o padding do final (recomendado)"
         )
     );
-    println!(
+    saida!(
         "{}",
         tema.opcao_com(
             "3",
@@ -264,19 +264,18 @@ fn tela_sobre(tema: &Tema) {
 /// Pausa entre telas: sem isso o resultado de uma ação sobe junto com o menu
 /// seguinte e o usuário não tem chance de ler.
 fn pausar(tema: &Tema) -> Resultado<()> {
-    print!(
+    saida_sem_linha!(
         "\n  {} {}",
         tema.c(SIM_SETA, &[&c::cinza()]),
         tema.c("Enter para continuar", &[&c::cinza(), ITA])
     );
-    io::stdout().flush()?;
     let mut lixo = String::new();
     match io::stdin().read_line(&mut lixo) {
         Ok(_) => {}
         Err(e) if e.kind() == ErrorKind::Interrupted => sistema::limpar_cancelamento(),
         Err(e) => return Err(e.into()),
     }
-    println!();
+    saida!();
     Ok(())
 }
 
@@ -308,19 +307,18 @@ enum Resposta {
 /// handler de `crate::sistema` instalado sem `SA_RESTART`, faz esta leitura
 /// voltar com `EINTR` em vez de ficar pendurada).
 fn ler_linha(tema: &Tema, pergunta: &str) -> Resultado<Entrada> {
-    print!("{}", tema.prompt(pergunta));
-    io::stdout().flush()?;
+    saida_sem_linha!("{}", tema.prompt(pergunta));
 
     let mut linha = String::new();
     match io::stdin().read_line(&mut linha) {
         Ok(0) => {
-            println!();
+            saida!();
             return Ok(Entrada::Sair);
         }
         Ok(_) => {}
         Err(e) if e.kind() == ErrorKind::Interrupted => {
             sistema::limpar_cancelamento();
-            println!();
+            saida!();
             return Ok(Entrada::Sair);
         }
         Err(e) => return Err(e.into()),
@@ -349,7 +347,7 @@ fn perguntar_sim_nao(tema: &Tema, pergunta: &str, padrao_sim: bool) -> Resultado
         "s" | "sim" | "y" | "yes" => true,
         _ => false,
     };
-    println!("{}", tema.resposta(if escolha { "sim" } else { "não" }));
+    saida!("{}", tema.resposta(if escolha { "sim" } else { "não" }));
     Ok(if escolha {
         Resposta::Sim
     } else {
@@ -488,11 +486,11 @@ fn navegador(tema: &Tema, inicial: &Path, modo: Selecao) -> Resultado<Passo<Vec<
     }
 
     loop {
-        println!(
+        saida!(
             "{}",
             tema.caixa_titulo("Escolher imagem", emo::ORIGEM(), LARGURA, true)
         );
-        println!(
+        saida!(
             "{}",
             tema.campo("Pasta atual", &encurtar_home(&atual), emo::DESTINO(), 14)
         );
@@ -503,7 +501,7 @@ fn navegador(tema: &Tema, inicial: &Path, modo: Selecao) -> Resultado<Passo<Vec<
         if subpastas.is_empty() && isos.is_empty() {
             tema.marca_nd("Pasta vazia", "nenhuma subpasta ou .iso aqui");
         } else {
-            println!("\n{}", tabela_de_itens(tema, &subpastas, &isos));
+            saida!("\n{}", tabela_de_itens(tema, &subpastas, &isos));
             if truncou {
                 tema.dica(&format!(
                     "Mostrando as primeiras {MAX_SUBPASTAS} subpastas."
@@ -511,9 +509,9 @@ fn navegador(tema: &Tema, inicial: &Path, modo: Selecao) -> Resultado<Passo<Vec<
             }
         }
 
-        println!();
+        saida!();
         if modo == Selecao::PastaInteira && !isos.is_empty() {
-            println!(
+            saida!(
                 "{}",
                 tema.opcao_com(
                     "t",
@@ -524,16 +522,16 @@ fn navegador(tema: &Tema, inicial: &Path, modo: Selecao) -> Resultado<Passo<Vec<
                 )
             );
         }
-        println!(
+        saida!(
             "{}",
             tema.opcao("..", "Subir uma pasta", emo::SUBIR(), Some(&c::azul()))
         );
-        println!(
+        saida!(
             "{}",
             tema.opcao("c", "Digitar um caminho", emo::OPCOES(), Some(&c::azul()))
         );
         if modo == Selecao::Escolher && !isos.is_empty() {
-            println!(
+            saida!(
                 "{}",
                 tema.opcao(
                     "t",
@@ -543,7 +541,7 @@ fn navegador(tema: &Tema, inicial: &Path, modo: Selecao) -> Resultado<Passo<Vec<
                 )
             );
         }
-        println!(
+        saida!(
             "{}",
             tema.opcao("0", "Voltar ao menu", emo::SAIR(), Some(&c::vermelho()))
         );
@@ -759,7 +757,7 @@ fn acao_analisar(tema: &Tema) -> Resultado<()> {
     for caminho in &caminhos {
         match analise::analisar(caminho) {
             Ok(info) => {
-                println!(
+                saida!(
                     "{}",
                     tema.campo("Arquivo", &nome_de(caminho), emo::DISCO(), 16)
                 );
@@ -800,7 +798,7 @@ fn mostrar_selecao(tema: &Tema, itens: &[Item]) {
         return;
     }
 
-    println!(
+    saida!(
         "{}",
         tema.etapa(None, &format!("{} imagens prontas", itens.len()), None)
     );
@@ -821,7 +819,7 @@ fn mostrar_selecao(tema: &Tema, itens: &[Item]) {
             ]
         })
         .collect();
-    println!(
+    saida!(
         "{}",
         tema.tabela(
             &["ARQUIVO", "CONSOLE", "TITLE ID", "TAMANHO"],
@@ -1009,7 +1007,7 @@ fn montar_plano_de(tema: &Tema, plano: Plano, _etapa: Etapa) -> Resultado<PlanoP
 /// Etapa 1: pasta de destino, realmente verificada (existe, é pasta, aceita
 /// escrita) antes de seguir — em vez de o erro aparecer no meio da conversão.
 fn escolher_destino(tema: &Tema, padrao: &Path) -> Resultado<Passo<PathBuf>> {
-    println!("{}", tema.etapa(Some(1), "Destino", Some(TOTAL_ETAPAS)));
+    saida!("{}", tema.etapa(Some(1), "Destino", Some(TOTAL_ETAPAS)));
     loop {
         let entrada = ler_linha(
             tema,
@@ -1025,7 +1023,7 @@ fn escolher_destino(tema: &Tema, padrao: &Path) -> Resultado<Passo<PathBuf>> {
             Entrada::Voltar => return Ok(Passo::Voltar),
             Entrada::Sair => return Ok(Passo::Sair),
         };
-        println!("{}", tema.resposta(&encurtar_home(&destino)));
+        saida!("{}", tema.resposta(&encurtar_home(&destino)));
 
         if destino.exists() && !destino.is_dir() {
             tema.erro("Esse caminho existe e não é uma pasta.");
@@ -1069,8 +1067,8 @@ fn testar_escrita(pasta: &Path) -> io::Result<()> {
 
 /// Etapa 2: estratégia de remoção de padding (padrão: Parcial, igual à CLI).
 fn escolher_padding(tema: &Tema) -> Resultado<Passo<RemocaoPadding>> {
-    println!("{}", tema.etapa(Some(2), "Padding", Some(TOTAL_ETAPAS)));
-    println!(
+    saida!("{}", tema.etapa(Some(2), "Padding", Some(TOTAL_ETAPAS)));
+    saida!(
         "{}",
         tema.opcao_com(
             "1",
@@ -1080,7 +1078,7 @@ fn escolher_padding(tema: &Tema) -> Resultado<Passo<RemocaoPadding>> {
             "converte o volume inteiro, como está"
         )
     );
-    println!(
+    saida!(
         "{}",
         tema.opcao_com(
             "2",
@@ -1090,7 +1088,7 @@ fn escolher_padding(tema: &Tema) -> Resultado<Passo<RemocaoPadding>> {
             "remove o padding do final (recomendado)"
         )
     );
-    println!(
+    saida!(
         "{}",
         tema.opcao_com(
             "3",
@@ -1116,7 +1114,7 @@ fn escolher_padding(tema: &Tema) -> Resultado<Passo<RemocaoPadding>> {
                 continue;
             }
         };
-        println!("{}", tema.resposta(nome_padding(padding)));
+        saida!("{}", tema.resposta(nome_padding(padding)));
         if matches!(padding, RemocaoPadding::Completa) {
             tema.dica(
                 "A reconstrução grava uma ISO temporária no destino antes de converter — \
@@ -1137,7 +1135,7 @@ fn nome_padding(padding: RemocaoPadding) -> &'static str {
 
 /// Etapa 3: número de threads para leitura/hash (padrão: 1, igual à CLI).
 fn escolher_threads(tema: &Tema) -> Resultado<Passo<usize>> {
-    println!("{}", tema.etapa(Some(3), "Threads", Some(TOTAL_ETAPAS)));
+    saida!("{}", tema.etapa(Some(3), "Threads", Some(TOTAL_ETAPAS)));
     let nucleos = std::thread::available_parallelism()
         .map(|n| n.get())
         .unwrap_or(1);
@@ -1153,7 +1151,7 @@ fn escolher_threads(tema: &Tema) -> Resultado<Passo<usize>> {
             Entrada::Sair => return Ok(Passo::Sair),
         };
         if texto.is_empty() {
-            println!("{}", tema.resposta("1"));
+            saida!("{}", tema.resposta("1"));
             return Ok(Passo::Ok(1));
         }
         match texto.parse::<usize>() {
@@ -1164,7 +1162,7 @@ fn escolher_threads(tema: &Tema) -> Resultado<Passo<usize>> {
                         god::MAX_THREADS
                     ));
                 }
-                println!("{}", tema.resposta(&texto));
+                saida!("{}", tema.resposta(&texto));
                 return Ok(Passo::Ok(n));
             }
             Err(_) => tema.erro("Informe um número inteiro."),
@@ -1180,7 +1178,7 @@ fn escolher_avancado(
     tema: &Tema,
     itens: &[Item],
 ) -> Resultado<Passo<(Option<String>, Option<PathBuf>, bool)>> {
-    println!(
+    saida!(
         "{}",
         tema.etapa(Some(TOTAL_ETAPAS), "Opções avançadas", Some(TOTAL_ETAPAS))
     );
@@ -1206,10 +1204,10 @@ fn escolher_avancado(
 
         match ler_linha(tema, &format!("{}  Título [{detectado}]", emo::ESTRELA()))? {
             Entrada::Texto(t) if !t.is_empty() => {
-                println!("{}", tema.resposta(&t));
+                saida!("{}", tema.resposta(&t));
                 titulo = Some(t);
             }
-            Entrada::Texto(_) => println!("{}", tema.resposta(&detectado)),
+            Entrada::Texto(_) => saida!("{}", tema.resposta(&detectado)),
             Entrada::Voltar => return Ok(Passo::Voltar),
             Entrada::Sair => return Ok(Passo::Sair),
         }
@@ -1217,7 +1215,7 @@ fn escolher_avancado(
         loop {
             match ler_linha(tema, &format!("{}  Ícone PNG [automático]", emo::JOGO()))? {
                 Entrada::Texto(t) if t.is_empty() => {
-                    println!("{}", tema.resposta("automático"));
+                    saida!("{}", tema.resposta("automático"));
                     break;
                 }
                 Entrada::Texto(t) => {
@@ -1226,7 +1224,7 @@ fn escolher_avancado(
                         tema.erro("Arquivo de ícone não encontrado.");
                         continue;
                     }
-                    println!("{}", tema.resposta(&encurtar_home(&caminho)));
+                    saida!("{}", tema.resposta(&encurtar_home(&caminho)));
                     icone = Some(caminho);
                     break;
                 }
@@ -1249,24 +1247,24 @@ fn escolher_avancado(
 }
 
 fn confirmar(tema: &Tema, plano: &Plano) -> Resultado<Passo<()>> {
-    println!("{}", tema.etapa(None, "Resumo", None));
+    saida!("{}", tema.etapa(None, "Resumo", None));
 
     if let [unico] = plano.itens.as_slice() {
-        println!(
+        saida!(
             "{}",
             tema.campo("Origem", &encurtar_home(&unico.caminho), emo::ORIGEM(), 16)
         );
         if let Some(nome_plataforma) = unico.info.nome_plataforma() {
-            println!(
+            saida!(
                 "{}",
                 tema.campo("Plataforma", nome_plataforma, emo::JOGO(), 16)
             );
         }
         if let Some(t) = &unico.info.titulo {
-            println!("{}", tema.campo("Título", t, emo::ESTRELA(), 16));
+            saida!("{}", tema.campo("Título", t, emo::ESTRELA(), 16));
         }
     } else {
-        println!(
+        saida!(
             "{}",
             tema.campo(
                 "Origem",
@@ -1277,7 +1275,7 @@ fn confirmar(tema: &Tema, plano: &Plano) -> Resultado<Passo<()>> {
         );
     }
 
-    println!(
+    saida!(
         "{}",
         tema.campo(
             "Destino",
@@ -1286,35 +1284,35 @@ fn confirmar(tema: &Tema, plano: &Plano) -> Resultado<Passo<()>> {
             16
         )
     );
-    println!(
+    saida!(
         "{}",
         tema.campo("Padding", nome_padding(plano.padding), emo::OPCOES(), 16)
     );
-    println!(
+    saida!(
         "{}",
         tema.campo("Threads", &plano.threads.to_string(), emo::THREADS(), 16)
     );
     if let Some(t) = &plano.titulo {
-        println!("{}", tema.campo("Título manual", t, emo::ESTRELA(), 16));
+        saida!("{}", tema.campo("Título manual", t, emo::ESTRELA(), 16));
     }
     if let Some(i) = &plano.icone {
-        println!(
+        saida!(
             "{}",
             tema.campo("Ícone", &encurtar_home(i), emo::JOGO(), 16)
         );
     }
     if plano.numero_disco {
-        println!("{}", tema.campo("Numerar disco", "sim", emo::DISCO(), 16));
+        saida!("{}", tema.campo("Numerar disco", "sim", emo::DISCO(), 16));
     }
 
     let necessario = plano.espaco_necessario();
-    println!(
+    saida!(
         "{}",
         tema.campo("Saída estimada", &fmt_bytes(necessario), emo::DADOS(), 16)
     );
 
     if let Some(livre) = sistema::espaco_livre(&plano.destino) {
-        println!(
+        saida!(
             "{}",
             tema.campo("Espaço livre", &fmt_bytes(livre), emo::DADOS(), 16)
         );
@@ -1347,7 +1345,7 @@ fn executar_plano(tema: &Tema, plano: &Plano) -> u32 {
 
     for (indice, item) in plano.itens.iter().enumerate() {
         if total > 1 {
-            println!(
+            saida!(
                 "{}",
                 tema.etapa(
                     None,
@@ -1397,8 +1395,8 @@ fn executar_plano(tema: &Tema, plano: &Plano) -> u32 {
     }
 
     if total > 1 {
-        println!("{}", tema.etapa(None, "Resumo do lote", None));
-        println!(
+        saida!("{}", tema.etapa(None, "Resumo do lote", None));
+        saida!(
             "{}",
             tema.campo(
                 "Convertidas",
@@ -1408,12 +1406,12 @@ fn executar_plano(tema: &Tema, plano: &Plano) -> u32 {
             )
         );
         if falhas > 0 {
-            println!(
+            saida!(
                 "{}",
                 tema.campo("Não convertidas", &falhas.to_string(), emo::ERRO(), 16)
             );
         }
-        println!(
+        saida!(
             "{}",
             tema.campo(
                 "Tempo total",

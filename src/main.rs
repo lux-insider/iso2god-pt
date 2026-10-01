@@ -1,5 +1,7 @@
 use clap::Parser;
 
+use iso2god::saida;
+
 use iso2god::analise;
 use iso2god::assistente;
 use iso2god::cli::{self, Cli, Comando};
@@ -70,7 +72,7 @@ fn exibir_banner(modo_maquina: bool) {
     }
     let tema = Tema::detectar();
     let titulo = format!("iso2god v{}", env!("CARGO_PKG_VERSION"));
-    println!(
+    saida!(
         "{}",
         tema.caixa_titulo(&titulo, terminal::emo::APP(), terminal::LARGURA, true)
     );
@@ -120,7 +122,7 @@ fn comando_info(args: cli::ArgsInfo) -> Resultado<()> {
     let info = analise::analisar(&args.origem)?;
 
     if args.json {
-        println!("{}", serde_json::to_string(&info).unwrap_or_default());
+        saida!("{}", serde_json::to_string(&info).unwrap_or_default());
         return Ok(());
     }
 

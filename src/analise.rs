@@ -122,20 +122,20 @@ impl InfoIso {
 
     /// Imprime o resumo em caixas/campos coloridos (ver `crate::terminal`).
     pub fn imprimir(&self, tema: &Tema) {
-        println!(
+        saida!(
             "{}",
             tema.caixa_titulo("Análise da imagem ISO", emo::ANALISAR(), LARGURA, true)
         );
 
-        println!(
+        saida!(
             "{}",
             tema.campo("Tipo de disco", &self.tipo_disco, emo::DISCO(), 20)
         );
-        println!(
+        saida!(
             "{}",
             tema.campo("Tamanho do volume", &fmt_bytes(self.tamanho_volume), "", 20)
         );
-        println!(
+        saida!(
             "{}",
             tema.campo(
                 "Setores no volume",
@@ -144,7 +144,7 @@ impl InfoIso {
                 20
             )
         );
-        println!(
+        saida!(
             "{}",
             tema.campo("Entradas na raiz", &self.entradas_raiz.to_string(), "", 20)
         );
@@ -161,27 +161,27 @@ impl InfoIso {
         }
 
         if let Some(nome_plataforma) = self.nome_plataforma() {
-            println!(
+            saida!(
                 "{}",
                 tema.etapa(None, &format!("Detectado: {nome_plataforma}"), None)
             );
             if let Some(t) = &self.title_id {
-                println!("{}", tema.campo("Title ID", t, emo::JOGO(), 20));
+                saida!("{}", tema.campo("Title ID", t, emo::JOGO(), 20));
             }
             if let Some(m) = &self.media_id {
-                println!("{}", tema.campo("Media ID", m, "", 20));
+                saida!("{}", tema.campo("Media ID", m, "", 20));
             }
             if let Some(t) = &self.titulo {
-                println!("{}", tema.campo("Título", t, emo::ESTRELA(), 20));
+                saida!("{}", tema.campo("Título", t, emo::ESTRELA(), 20));
             }
             if let (Some(d), Some(td)) = (self.disco, self.total_discos) {
-                println!(
+                saida!(
                     "{}",
                     tema.campo("Disco", &format!("{d} / {td}"), emo::DISCO(), 20)
                 );
             }
             if let Some(png) = &self.thumbnail_png_base64 {
-                println!(
+                saida!(
                     "{}",
                     tema.campo(
                         "Thumbnail",
@@ -195,7 +195,7 @@ impl InfoIso {
             tema.aviso("Plataforma não detectada (nenhum default.xex/default.xbe encontrado)");
         }
 
-        println!(
+        saida!(
             "{}",
             tema.campo(
                 "Último setor ocupado",
@@ -214,6 +214,6 @@ impl InfoIso {
                 self.ultimo_setor, self.setores_volume
             ));
         }
-        println!();
+        saida!();
     }
 }

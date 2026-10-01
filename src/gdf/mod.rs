@@ -103,7 +103,7 @@ impl Gdf {
         ) {
             Ok(tabela) => Some(tabela),
             Err(e) => {
-                eprintln!("aviso: falha ao ler o diretório raiz da GDF: {e}");
+                saida_erro!("aviso: falha ao ler o diretório raiz da GDF: {e}");
                 None
             }
         };
@@ -384,7 +384,7 @@ fn processar_diretorio(
                 Ok(sub) => tabela.entradas[indice].subdiretorio = Some(sub),
                 Err(e) if orcamento.esgotado => return Err(e),
                 Err(e) => {
-                    eprintln!(
+                    saida_erro!(
                         "aviso: falha ao ler subdiretório '{}' (setor {setor}): {e}",
                         tabela.entradas[indice].nome
                     );
