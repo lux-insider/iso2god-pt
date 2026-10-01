@@ -20,6 +20,43 @@ const SETOR_ASSINATURA: u64 = 32;
 
 const ASSINATURA_XBOX_MEDIA: &[u8; 20] = b"MICROSOFT*XBOX*MEDIA";
 
+/// Uma tabela de diretório real tem poucos KB; 16 MiB já é absurdo. Uma
+/// tabela maior é tratada como ilegível (como a que passa do fim do volume).
+const MAX_TABELA: u32 = 16 * 1024 * 1024;
+/// Teto de entradas carregadas na imagem inteira: um disco real tem alguns
+/// milhares.
+const MAX_ENTRADAS: usize = 1_000_000;
+/// Teto de bytes de tabela lidos na imagem inteira. Um disco real lê poucos
+/// MB; isto só para imagens em que vários diretórios apontam para as mesmas
+/// tabelas, que de outro jeito seriam carregadas de novo a cada entrada,
+/// com o número de cópias multiplicando a cada nível.
+const MAX_LIDO_TABELAS: u64 = 1024 * 1024 * 1024;
+
+/// O quanto da árvore de diretórios já foi carregado, somado em todas as
+/// leituras da mesma imagem.
+#[derive(Debug, Default)]
+struct Orcamento {
+    entradas: usize,
+    bytes: u64,
+    esgotado: bool,
+}
+
+impl Orcamento {
+    fn gastar(&mut self, bytes: u32, entradas: usize) -> Resultado<()> {
+        self.bytes += bytes as u64;
+        self.entradas += entradas;
+        if self.bytes <= MAX_LIDO_TABELAS && self.entradas <= MAX_ENTRADAS {
+            return Ok(());
+        }
+        self.esgotado = true;
+        Err(Erro::IsoInvalida(format!(
+            "a árvore de diretórios passa de {MAX_ENTRADAS} entradas ou de {} MiB de tabelas: \
+             a imagem está corrompida (diretórios apontando para as mesmas tabelas)",
+            MAX_LIDO_TABELAS / (1024 * 1024)
+        )))
+    }
+}
+
 /// Tamanho, em bytes, dos campos fixos do descritor de volume lidos logo após
 /// a assinatura: identificador (20) + setor raiz (4) + tamanho raiz (4) +
 /// timestamp de criação (8).
@@ -36,6 +73,7 @@ pub struct Gdf {
     /// ainda assim é bem-sucedido, igual ao construtor original, que
     /// registra a exceção em `Exceptions` mas não impede o objeto de existir.
     pub raiz: Option<TabelaDiretorio>,
+    orcamento: Orcamento,
 }
 
 impl Gdf {
@@ -55,9 +93,11 @@ impl Gdf {
         // O original tolera falha ao ler o diretório raiz (guarda a exceção
         // em `Exceptions` e segue em frente com um GDF "vazio"). Replicamos
         // essa tolerância aqui em vez de abortar `abrir`.
+        let mut orcamento = Orcamento::default();
         let raiz = match ler_tabela_diretorio(
             &mut leitor,
             &descritor,
+            &mut orcamento,
             descritor.setor_dir_raiz,
             descritor.tamanho_dir_raiz,
         ) {
@@ -73,6 +113,7 @@ impl Gdf {
             tipo,
             descritor,
             raiz,
+            orcamento,
         })
     }
 
@@ -101,6 +142,7 @@ impl Gdf {
             &mut raiz,
             &mut self.leitor,
             &self.descritor,
+            &mut self.orcamento,
             &mut ultimo_setor,
             0,
         );
@@ -140,7 +182,14 @@ impl Gdf {
         let Some(raiz) = self.raiz.as_mut() else {
             return false;
         };
-        let pasta = match obter_pasta(raiz, caminho, &mut self.leitor, &self.descritor, 0) {
+        let pasta = match obter_pasta(
+            raiz,
+            caminho,
+            &mut self.leitor,
+            &self.descritor,
+            &mut self.orcamento,
+            0,
+        ) {
             Ok(Some(pasta)) => pasta,
             _ => return false,
         };
@@ -157,8 +206,15 @@ impl Gdf {
 
         let raiz = self.raiz.as_mut().ok_or_else(nao_encontrado)?;
         let (setor, tamanho) = {
-            let pasta = obter_pasta(raiz, caminho, &mut self.leitor, &self.descritor, 0)?
-                .ok_or_else(nao_encontrado)?;
+            let pasta = obter_pasta(
+                raiz,
+                caminho,
+                &mut self.leitor,
+                &self.descritor,
+                &mut self.orcamento,
+                0,
+            )?
+            .ok_or_else(nao_encontrado)?;
             let entrada = pasta
                 .encontrar(ultimo_componente)
                 .ok_or_else(nao_encontrado)?;
@@ -239,13 +295,24 @@ fn validar_leitura(
 /// e delega o parsing para `TabelaDiretorio::ler`. Equivalente à parte de
 /// E/S do construtor `GDFDirTable(CBinaryReader, GDFVolumeDescriptor, uint,
 /// uint)` — que aqui fica separada do parsing puro em `diretorio.rs`.
+///
+/// Cada tabela lida entra no `orcamento` da imagem; estourá-lo é erro da
+/// imagem inteira (ver `processar_diretorio`).
 fn ler_tabela_diretorio(
     leitor: &mut BufReader<File>,
     descritor: &DescritorVolume,
+    orcamento: &mut Orcamento,
     setor: u32,
     tamanho: u32,
 ) -> Resultado<TabelaDiretorio> {
     validar_leitura(descritor, setor, tamanho, "a tabela de diretório")?;
+    if tamanho > MAX_TABELA {
+        return Err(Erro::IsoInvalida(format!(
+            "a tabela de diretório do setor {setor} declara {tamanho} bytes, e uma tabela real \
+             tem poucos KB: a imagem está corrompida"
+        )));
+    }
+    orcamento.gastar(tamanho, 0)?;
 
     let posicao = descritor.deslocamento_raiz + setor as u64 * descritor.tamanho_setor as u64;
     leitor.seek(SeekFrom::Start(posicao))?;
@@ -261,7 +328,9 @@ fn ler_tabela_diretorio(
             Erro::Io(e)
         }
     })?;
-    TabelaDiretorio::ler(&bytes, setor, tamanho)
+    let tabela = TabelaDiretorio::ler(&bytes, setor, tamanho)?;
+    orcamento.gastar(0, tabela.entradas.len())?;
+    Ok(tabela)
 }
 
 /// Percorre recursivamente `tabela`, atualizando `ultimo_setor` e carregando
@@ -271,6 +340,7 @@ fn processar_diretorio(
     tabela: &mut TabelaDiretorio,
     leitor: &mut BufReader<File>,
     descritor: &DescritorVolume,
+    orcamento: &mut Orcamento,
     ultimo_setor: &mut u32,
     profundidade: u32,
 ) -> Resultado<()> {
@@ -308,8 +378,11 @@ fn processar_diretorio(
             // num único try/catch e simplesmente para de descer numa
             // subárvore problemática, mantendo o que já foi calculado até
             // ali.
-            match ler_tabela_diretorio(leitor, descritor, setor, tamanho) {
+            // O orçamento esgotado não é uma subpasta ruim: é a imagem
+            // inteira, e continuar só repetiria o erro a cada entrada.
+            match ler_tabela_diretorio(leitor, descritor, orcamento, setor, tamanho) {
                 Ok(sub) => tabela.entradas[indice].subdiretorio = Some(sub),
+                Err(e) if orcamento.esgotado => return Err(e),
                 Err(e) => {
                     eprintln!(
                         "aviso: falha ao ler subdiretório '{}' (setor {setor}): {e}",
@@ -320,7 +393,14 @@ fn processar_diretorio(
             }
         }
         let sub = tabela.entradas[indice].subdiretorio.as_mut().unwrap();
-        processar_diretorio(sub, leitor, descritor, ultimo_setor, profundidade + 1)?;
+        processar_diretorio(
+            sub,
+            leitor,
+            descritor,
+            orcamento,
+            ultimo_setor,
+            profundidade + 1,
+        )?;
     }
 
     Ok(())
@@ -342,6 +422,7 @@ fn obter_pasta<'a>(
     caminho: &str,
     leitor: &mut BufReader<File>,
     descritor: &DescritorVolume,
+    orcamento: &mut Orcamento,
     profundidade: u32,
 ) -> Resultado<Option<&'a mut TabelaDiretorio>> {
     if caminho.is_empty() {
@@ -373,14 +454,14 @@ fn obter_pasta<'a>(
             let entrada = &tabela.entradas[indice];
             (entrada.setor, entrada.tamanho)
         };
-        let sub = ler_tabela_diretorio(leitor, descritor, setor, tamanho)?;
+        let sub = ler_tabela_diretorio(leitor, descritor, orcamento, setor, tamanho)?;
         tabela.entradas[indice].subdiretorio = Some(sub);
     }
     let sub = tabela.entradas[indice].subdiretorio.as_mut().unwrap();
 
     match resto {
         None => Ok(Some(sub)),
-        Some(resto) => obter_pasta(sub, resto, leitor, descritor, profundidade + 1),
+        Some(resto) => obter_pasta(sub, resto, leitor, descritor, orcamento, profundidade + 1),
     }
 }
 
@@ -570,6 +651,7 @@ mod testes {
         let erro = ler_tabela_diretorio(
             &mut BufReader::new(File::open(&caminho).unwrap()),
             &gdf.descritor,
+            &mut Orcamento::default(),
             100,
             u32::MAX,
         );
