@@ -5,6 +5,7 @@ pub(crate) mod reconstrucao;
 use std::fs::{self, File, OpenOptions};
 use std::io::{Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc;
 use std::time::Instant;
 
@@ -703,7 +704,7 @@ fn offset_sht_na_parte(indice_sht: u32) -> u64 {
 
 /// Deslocamento, dentro do arquivo de uma "Part", de onde começa o bloco de
 /// dados de índice `indice_local` (0-based, relativo ao início da parte).
-fn offset_bloco_na_parte(indice_local: u32) -> u64 {
+pub(crate) fn offset_bloco_na_parte(indice_local: u32) -> u64 {
     let indice_sht = indice_local / BLOCOS_POR_SHT;
     let posicao_no_sht = indice_local % BLOCOS_POR_SHT;
     offset_sht_na_parte(indice_sht)
@@ -805,7 +806,7 @@ fn escrever_partes(
 /// SHA1 de cada bloco, em ordem. Cada thread grava diretamente os bytes do
 /// bloco na posição final dentro do arquivo da parte — só os hashes voltam
 /// para a thread principal, que monta as hash tables depois.
-fn ler_e_hashear_paralelo(
+pub(crate) fn ler_e_hashear_paralelo(
     caminho_origem: &Path,
     deslocamento_raiz: u64,
     caminho_parte: &Path,
@@ -816,6 +817,10 @@ fn ler_e_hashear_paralelo(
 ) -> Resultado<Vec<[u8; 20]>> {
     let threads = threads.min(blocos_nesta_parte.max(1) as usize).max(1);
     let (tx, rx) = mpsc::channel::<Resultado<(u32, [u8; 20])>>();
+    // Uma thread que falha avisa as outras, que param no próximo grupo em
+    // vez de ler e gravar o resto da parte (até 170 MB) à toa.
+    let parar = AtomicBool::new(false);
+    let parar = &parar;
 
     std::thread::scope(|escopo| -> Resultado<Vec<[u8; 20]>> {
         for id_thread in 0..threads {
@@ -832,10 +837,11 @@ fn ler_e_hashear_paralelo(
                     deslocamento_raiz,
                     caminho_parte,
                     indice_global_inicial,
-                    inicio,
-                    fim,
+                    inicio..fim,
                     &tx,
+                    parar,
                 ) {
+                    parar.store(true, Ordering::Relaxed);
                     let _ = tx.send(Err(e));
                 }
             });
@@ -873,10 +879,11 @@ fn processar_faixa(
     deslocamento_raiz: u64,
     caminho_parte: &Path,
     indice_global_inicial: u32,
-    inicio_local: u32,
-    fim_local: u32,
+    faixa: std::ops::Range<u32>,
     tx: &mpsc::Sender<Resultado<(u32, [u8; 20])>>,
+    parar: &AtomicBool,
 ) -> Resultado<()> {
+    let (inicio_local, fim_local) = (faixa.start, faixa.end);
     let mut origem = File::open(caminho_origem).ctx(Operacao::Abrir, caminho_origem)?;
     let mut saida = OpenOptions::new()
         .write(true)
@@ -896,6 +903,13 @@ fn processar_faixa(
         // meio de uma escrita.
         if sistema::cancelado() {
             return Err(Erro::Cancelado);
+        }
+        if parar.load(Ordering::Relaxed) {
+            return Ok(());
+        }
+        #[cfg(test)]
+        if inicio_local == 0 && testes::falha_de_teste(caminho_parte) {
+            return Err(Erro::IsoInvalida("falha de teste".into()));
         }
         let fim_do_grupo = (indice_local / BLOCOS_POR_SHT + 1) * BLOCOS_POR_SHT;
         let n = (fim_do_grupo.min(fim_local) - indice_local) as usize;
@@ -1147,8 +1161,19 @@ fn escrever_string_estilo_dotnet(saida: &mut Vec<u8>, texto: &str) {
 }
 
 #[cfg(test)]
-mod testes {
+pub(crate) mod testes {
     use super::*;
+
+    /// Parte em que a thread da primeira faixa deve falhar (ver
+    /// `processar_faixa`): só a do teste que pediu.
+    pub(crate) static FALHA_DE_TESTE: std::sync::Mutex<Option<PathBuf>> =
+        std::sync::Mutex::new(None);
+
+    pub(crate) fn falha_de_teste(caminho_parte: &Path) -> bool {
+        FALHA_DE_TESTE
+            .lock()
+            .is_ok_and(|f| f.as_deref() == Some(caminho_parte))
+    }
 
     /// Valores de referência calculados independentemente em Python
     /// (`hashlib.sha1`), replicando à mão o algoritmo do
