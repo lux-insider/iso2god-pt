@@ -804,3 +804,79 @@ fn linha_de_comando_progresso_json_info_e_codigos_de_saida() {
         .unwrap();
     assert_eq!(uso.status.code(), Some(2));
 }
+
+/// `--padding completa` em imagens só com nomes ASCII. A reconstrução
+/// regrava as tabelas de diretório e remapeia os setores, então este é o
+/// cenário em que os nomes e a correspondência entre a árvore antiga e a
+/// nova importam. Uma das tabelas é completada com zeros em vez de 0xFF (a
+/// leitura linear vê aí dezenas de entradas vazias, todas com o mesmo nome
+/// vazio), e os arquivos estão no disco fora da ordem das tabelas.
+#[test]
+fn padding_completa_com_nomes_so_ascii() {
+    let t = Temp::nova("completa-ascii");
+
+    // Xbox original
+    let iso = iso_xbox(&t, &montar_xbe(0x4D53_0064, "Jogo Clássico ç", 0));
+    let m = converter(OpcoesConversao {
+        padding: RemocaoPadding::Completa,
+        ..opcoes(iso, t.0.join("xbox"))
+    });
+    conferir(
+        "Xbox original, padding completa, nomes ASCII",
+        &m,
+        "4D530064/\n4D530064/00005000/\n4D530064/00005000/2CC07C752C92C76AA78B 45056 6642d17e10160e367db06d1a2b951b700898bdc7\n4D530064/00005000/2CC07C752C92C76AA78B.data/\n4D530064/00005000/2CC07C752C92C76AA78B.data/Data0000 126976 88fb64504fba5ee5156db3224700d27a7876cfc3",
+    );
+
+    // Xbox 360, com subpastas
+    let xex = xex_basica();
+    let a = bytes(5, 70_000);
+    let b = bytes(6, 4_097);
+    let c = bytes(7, 2_048);
+    let d = bytes(8, 123_456);
+    let profunda = tabela(&[(b"d.bin", 900, d.len() as u32, ARQ)]);
+    let ents_nivel: [(&[u8], u32, u32, u8); 3] = [
+        (b"C-Arquivo_1.DAT", 800, c.len() as u32, ARQ),
+        (b"Profunda", 42, S as u32, DIR),
+        (b"b.bin", 700, b.len() as u32, ARQ),
+    ];
+    let mut nivel = tabela(&ents_nivel);
+    // completa com zeros depois da última entrada, em vez de 0xFF
+    let usado: usize = ents_nivel
+        .iter()
+        .map(|(n, ..)| (14 + n.len()).div_ceil(4) * 4)
+        .sum();
+    nivel[usado..].fill(0);
+    let raiz = tabela(&[
+        (b"a.bin", 600, a.len() as u32, ARQ),
+        (b"default.xex", 100, xex.len() as u32, ARQ),
+        (b"Media", 40, S as u32, DIR),
+        (b"vazia", 41, S as u32, DIR),
+        (b"zero.bin", 0, 0, ARQ),
+    ]);
+    let iso = t.0.join("ascii360.iso");
+    gravar_iso(
+        &iso,
+        XGD3,
+        (33, &raiz),
+        &[
+            (40, &nivel),
+            (41, &[0xFF; S as usize]),
+            (42, &profunda),
+            (100, &xex),
+            (600, &a),
+            (700, &b),
+            (800, &c),
+            (900, &d),
+        ],
+        1000,
+    );
+    let m = converter(OpcoesConversao {
+        padding: RemocaoPadding::Completa,
+        ..opcoes(iso, t.0.join("x360"))
+    });
+    conferir(
+        "Xbox 360, padding completa, nomes ASCII",
+        &m,
+        "4D5308BF/\n4D5308BF/00007000/\n4D5308BF/00007000/FE40C7D9CF2D599EB911 45056 83de24bea7f5fef301124177590e1fcdd8acbb9c\n4D5308BF/00007000/FE40C7D9CF2D599EB911.data/\n4D5308BF/00007000/FE40C7D9CF2D599EB911.data/Data0000 385024 a51f2a9140457a62e752b626f4f285592f6b3894",
+    );
+}
