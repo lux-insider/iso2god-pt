@@ -21,7 +21,13 @@ pub struct EntradaDiretorio {
     pub setor: u32,
     pub tamanho: u32,
     pub atributos: AtributosEntrada,
+    /// O nome como texto, para mostrar e para procurar `default.xex`
+    /// (bytes a partir de 0x80 viram `?`, ver `decodificar_ascii`).
     pub nome: String,
+    /// Os bytes do nome exatamente como estão no disco. O texto acima não
+    /// basta para voltar a eles (`Canção.ogg` vira `Can??o.ogg`), e o jogo
+    /// procura o arquivo pelos bytes: é isto que a reconstrução grava.
+    pub bytes_nome: Vec<u8>,
     /// Subdiretório carregado sob demanda (lazy), igual ao `SubDir` original:
     /// só é preenchido quando alguém precisa navegar por dentro dele.
     pub subdiretorio: Option<TabelaDiretorio>,
@@ -38,17 +44,17 @@ impl EntradaDiretorio {
     /// foram lidos — ver o comentário em `TabelaDiretorio::para_bytes` sobre
     /// por que isso é seguro. Equivalente a `GDFDirEntry.ToByteArray()`.
     fn para_bytes(&self) -> Vec<u8> {
-        let mut buf = Vec::with_capacity(14 + self.nome.len() + 3);
+        let mut buf = Vec::with_capacity(14 + self.bytes_nome.len() + 3);
         buf.extend_from_slice(&self.subarvore_esquerda.to_le_bytes());
         buf.extend_from_slice(&self.subarvore_direita.to_le_bytes());
         buf.extend_from_slice(&self.setor.to_le_bytes());
         buf.extend_from_slice(&self.tamanho.to_le_bytes());
         buf.push(self.atributos.0);
-        buf.push(self.nome.len() as u8);
-        // Nomes decodificados por `decodificar_ascii` são sempre ASCII puro
-        // (bytes >= 0x80 viram '?' na leitura), então `as_bytes()` devolve
-        // exatamente os bytes originais, sem precisar de um codificador à parte.
-        buf.extend_from_slice(self.nome.as_bytes());
+        // Os bytes lidos do disco, não o texto: num nome ASCII os dois são
+        // iguais, mas num nome acentuado (Latin-1 ou UTF-8) o texto tem `?`
+        // no lugar de cada byte a partir de 0x80.
+        buf.push(self.bytes_nome.len() as u8);
+        buf.extend_from_slice(&self.bytes_nome);
 
         let resto = buf.len() % 4;
         if resto != 0 {
@@ -125,7 +131,8 @@ impl TabelaDiretorio {
             if posicao + tamanho_nome > bytes.len() {
                 break;
             }
-            let nome = decodificar_ascii(&bytes[posicao..posicao + tamanho_nome]);
+            let bytes_nome = bytes[posicao..posicao + tamanho_nome].to_vec();
+            let nome = decodificar_ascii(&bytes_nome);
             posicao += tamanho_nome;
 
             let resto = posicao % 4;
@@ -140,6 +147,7 @@ impl TabelaDiretorio {
                 tamanho: entrada_tamanho,
                 atributos,
                 nome,
+                bytes_nome,
                 subdiretorio: None,
             });
         }
@@ -245,6 +253,7 @@ mod testes {
             tamanho,
             atributos: AtributosEntrada(attrib),
             nome: nome.to_string(),
+            bytes_nome: nome.as_bytes().to_vec(),
             subdiretorio: None,
         }
     }
@@ -281,6 +290,28 @@ mod testes {
             assert_eq!(a.tamanho, b.tamanho);
             assert_eq!(a.atributos, b.atributos);
             assert_eq!(a.nome, b.nome);
+        }
+    }
+
+    /// N-1: um nome acentuado é relido e regravado com os mesmos bytes;
+    /// só o texto para mostrar tem `?`.
+    #[test]
+    fn n1_nome_acentuado_volta_com_os_mesmos_bytes() {
+        for nome in [&b"Can\xe7\xe3o.ogg"[..], "Canção.ogg".as_bytes()] {
+            let mut bytes = Vec::new();
+            bytes.extend_from_slice(&0u16.to_le_bytes());
+            bytes.extend_from_slice(&0u16.to_le_bytes());
+            bytes.extend_from_slice(&100u32.to_le_bytes());
+            bytes.extend_from_slice(&5000u32.to_le_bytes());
+            bytes.push(0x00);
+            bytes.push(nome.len() as u8);
+            bytes.extend_from_slice(nome);
+            bytes.resize(2048, 0xFF);
+
+            let tabela = TabelaDiretorio::ler(&bytes, 33, 2048).unwrap();
+            assert_eq!(tabela.entradas[0].bytes_nome, nome);
+            assert!(tabela.entradas[0].nome.starts_with("Can?"));
+            assert_eq!(tabela.para_bytes().unwrap(), bytes);
         }
     }
 
