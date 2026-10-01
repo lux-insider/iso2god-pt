@@ -14,7 +14,7 @@ use std::fs::File;
 use std::io::{Read, Seek, SeekFrom, Write};
 use std::path::Path;
 
-use crate::erro::{Erro, Resultado};
+use crate::erro::{Contexto, Erro, Operacao, Resultado};
 use crate::gdf::Gdf;
 use crate::gdf::diretorio::TabelaDiretorio;
 
@@ -42,6 +42,34 @@ const ASSINATURA_XSF: u32 = 0x1A46_5358;
 /// de CD/DVD que tentem ler a imagem como ISO9660 comum).
 const PVD_ISO9660: &[u8; 2055] = include_bytes!("pvd_iso9660.bin");
 
+/// Um arquivo aberto e o seu caminho: uma falha de E/S diz em qual arquivo
+/// foi.
+struct Aberto<'a> {
+    arquivo: File,
+    caminho: &'a Path,
+}
+
+impl Aberto<'_> {
+    fn ir(&mut self, posicao: u64, operacao: Operacao) -> Resultado<()> {
+        self.arquivo
+            .seek(SeekFrom::Start(posicao))
+            .ctx(operacao, self.caminho)?;
+        Ok(())
+    }
+
+    fn gravar(&mut self, dados: &[u8]) -> Resultado<()> {
+        self.arquivo
+            .write_all(dados)
+            .ctx(Operacao::Gravar, self.caminho)
+    }
+
+    fn ler_exato(&mut self, dados: &mut [u8]) -> Resultado<()> {
+        self.arquivo
+            .read_exact(dados)
+            .ctx(Operacao::Ler, self.caminho)
+    }
+}
+
 /// Reconstrói a GDF inteira (sem nenhum padding) a partir de `gdf` (já
 /// aberta) lendo os dados brutos de `origem`, e grava o resultado em
 /// `destino`. Equivalente a `RemapSectors` + `WriteGDF` + `WriteFiles`.
@@ -54,7 +82,10 @@ pub fn reconstruir(gdf: &mut Gdf, origem: &Path, destino: &Path) -> Resultado<()
     let mut proximo_setor = SETOR_INICIAL_LIVRE;
     remapear_raiz(&mut raiz_nova, &mut proximo_setor);
 
-    let mut saida = File::create(destino)?;
+    let mut saida = Aberto {
+        arquivo: File::create(destino).ctx(Operacao::Criar, destino)?,
+        caminho: destino,
+    };
     escrever_cabecalho(
         &mut saida,
         &raiz_nova,
@@ -63,7 +94,10 @@ pub fn reconstruir(gdf: &mut Gdf, origem: &Path, destino: &Path) -> Resultado<()
     )?;
     escrever_tabelas(&mut saida, &raiz_nova)?;
 
-    let mut arquivo_origem = File::open(origem)?;
+    let mut arquivo_origem = Aberto {
+        arquivo: File::open(origem).ctx(Operacao::Abrir, origem)?,
+        caminho: origem,
+    };
     escrever_arquivos(
         &mut saida,
         &mut arquivo_origem,
@@ -142,36 +176,36 @@ fn remapear_arquivos(tabela: &mut TabelaDiretorio, proximo_setor: &mut u32) {
 /// origem; setor/tamanho do diretório raiz apontando para o novo local).
 /// Equivalente a `Iso2God.writeGDFheader`.
 fn escrever_cabecalho(
-    saida: &mut File,
+    saida: &mut Aberto,
     raiz: &TabelaDiretorio,
     identificador: &[u8],
     criacao_imagem: &[u8],
 ) -> Resultado<()> {
-    saida.seek(SeekFrom::Start(0))?;
-    saida.write_all(&ASSINATURA_XSF.to_le_bytes())?;
-    saida.write_all(&1024u32.to_le_bytes())?;
+    saida.ir(0, Operacao::Gravar)?;
+    saida.gravar(&ASSINATURA_XSF.to_le_bytes())?;
+    saida.gravar(&1024u32.to_le_bytes())?;
 
-    saida.seek(SeekFrom::Start(32768))?;
-    saida.write_all(PVD_ISO9660)?;
+    saida.ir(32768, Operacao::Gravar)?;
+    saida.gravar(PVD_ISO9660)?;
 
-    saida.seek(SeekFrom::Start(65536))?;
-    saida.write_all(identificador)?;
-    saida.write_all(&raiz.setor.to_le_bytes())?;
-    saida.write_all(&raiz.tamanho.to_le_bytes())?;
-    saida.write_all(criacao_imagem)?;
-    saida.write_all(&[1u8])?;
+    saida.ir(65536, Operacao::Gravar)?;
+    saida.gravar(identificador)?;
+    saida.gravar(&raiz.setor.to_le_bytes())?;
+    saida.gravar(&raiz.tamanho.to_le_bytes())?;
+    saida.gravar(criacao_imagem)?;
+    saida.gravar(&[1u8])?;
 
-    saida.seek(SeekFrom::Start(67564))?;
-    saida.write_all(identificador)?;
+    saida.ir(67564, Operacao::Gravar)?;
+    saida.gravar(identificador)?;
 
     Ok(())
 }
 
 /// Grava recursivamente cada tabela de diretório já remapeada em seu novo
 /// setor. Equivalente a `Iso2God.writeGDFtable`.
-fn escrever_tabelas(saida: &mut File, tabela: &TabelaDiretorio) -> Resultado<()> {
-    saida.seek(SeekFrom::Start(tabela.setor as u64 * TAMANHO_SETOR))?;
-    saida.write_all(&tabela.para_bytes()?)?;
+fn escrever_tabelas(saida: &mut Aberto, tabela: &TabelaDiretorio) -> Resultado<()> {
+    saida.ir(tabela.setor as u64 * TAMANHO_SETOR, Operacao::Gravar)?;
+    saida.gravar(&tabela.para_bytes()?)?;
 
     for entrada in &tabela.entradas {
         if entrada.eh_diretorio()
@@ -190,8 +224,8 @@ fn escrever_tabelas(saida: &mut File, tabela: &TabelaDiretorio) -> Resultado<()>
 /// elas têm exatamente a mesma forma, só os setores mudaram. Equivalente a
 /// `Iso2God.writeFiles`.
 fn escrever_arquivos(
-    saida: &mut File,
-    origem: &mut File,
+    saida: &mut Aberto,
+    origem: &mut Aberto,
     deslocamento_raiz_origem: u64,
     tabela_original: &TabelaDiretorio,
     tabela_nova: &TabelaDiretorio,
@@ -251,17 +285,18 @@ fn escrever_arquivos(
 /// de um setor inteiro (2048 bytes) — o último, se parcial, é preenchido
 /// com zero até completar o setor. Equivalente a `GDF.WriteFileToStream`.
 fn copiar_arquivo(
-    saida: &mut File,
-    origem: &mut File,
+    saida: &mut Aberto,
+    origem: &mut Aberto,
     deslocamento_raiz_origem: u64,
     setor_origem: u32,
     setor_destino: u32,
     tamanho: u32,
 ) -> Resultado<()> {
-    origem.seek(SeekFrom::Start(
+    origem.ir(
         deslocamento_raiz_origem + setor_origem as u64 * TAMANHO_SETOR,
-    ))?;
-    saida.seek(SeekFrom::Start(setor_destino as u64 * TAMANHO_SETOR))?;
+        Operacao::Ler,
+    )?;
+    saida.ir(setor_destino as u64 * TAMANHO_SETOR, Operacao::Gravar)?;
 
     let setores = tamanho_para_setores(tamanho);
     let mut restante = tamanho as u64;
@@ -274,11 +309,11 @@ fn copiar_arquivo(
             return Err(Erro::Cancelado);
         }
         let a_ler = (TAMANHO_SETOR as usize).min(restante as usize);
-        origem.read_exact(&mut buffer[..a_ler])?;
+        origem.ler_exato(&mut buffer[..a_ler])?;
         if a_ler < buffer.len() {
             buffer[a_ler..].fill(0);
         }
-        saida.write_all(&buffer)?;
+        saida.gravar(&buffer)?;
         restante = restante.saturating_sub(a_ler as u64);
     }
 
@@ -290,17 +325,20 @@ fn copiar_arquivo(
 /// tamanho em setores duas vezes (little-endian e big-endian). Só dá para
 /// calcular depois que todo o resto já foi escrito, por isso é o último
 /// passo. Equivalente a `Iso2God.writeGDFsizes`.
-fn escrever_tamanhos_finais(saida: &mut File) -> Resultado<()> {
-    let tamanho = saida.seek(SeekFrom::End(0))?;
+fn escrever_tamanhos_finais(saida: &mut Aberto) -> Resultado<()> {
+    let tamanho = saida
+        .arquivo
+        .seek(SeekFrom::End(0))
+        .ctx(Operacao::Consultar, saida.caminho)?;
 
-    saida.seek(SeekFrom::Start(8))?;
-    saida.write_all(&(tamanho as i64 - 1024).to_le_bytes())?;
+    saida.ir(8, Operacao::Gravar)?;
+    saida.gravar(&(tamanho as i64 - 1024).to_le_bytes())?;
 
     let tamanho_em_setores = (tamanho / TAMANHO_SETOR) as u32;
-    saida.seek(SeekFrom::Start(32848))?;
-    saida.write_all(&tamanho_em_setores.to_le_bytes())?;
-    saida.seek(SeekFrom::Start(32852))?;
-    saida.write_all(&tamanho_em_setores.to_be_bytes())?;
+    saida.ir(32848, Operacao::Gravar)?;
+    saida.gravar(&tamanho_em_setores.to_le_bytes())?;
+    saida.ir(32852, Operacao::Gravar)?;
+    saida.gravar(&tamanho_em_setores.to_be_bytes())?;
 
     Ok(())
 }

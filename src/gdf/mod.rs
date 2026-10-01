@@ -2,13 +2,13 @@ pub mod diretorio;
 pub mod volume;
 
 use std::fs::File;
-use std::io::{BufReader, Read, Seek, SeekFrom};
-use std::path::Path;
+use std::io::{self, BufReader, Read, Seek, SeekFrom};
+use std::path::{Path, PathBuf};
 
 use diretorio::{PROFUNDIDADE_MAXIMA, TabelaDiretorio};
 use volume::{DescritorVolume, TipoIso};
 
-use crate::erro::{Erro, Resultado};
+use crate::erro::{Contexto, Erro, Operacao, Resultado, erro_arquivo};
 
 /// Tamanho fixo do setor em uma imagem GDF (não confundir com `TAMANHO_BLOCO`
 /// do container GOD, que é diferente).
@@ -66,10 +66,37 @@ impl Orcamento {
 /// timestamp de criação (8).
 const TAMANHO_DESCRITOR_VOLUME: usize = 20 + 4 + 4 + 8;
 
+/// O arquivo da imagem e o seu caminho: uma falha de leitura diz de qual
+/// arquivo foi.
+struct Leitor {
+    arquivo: BufReader<File>,
+    caminho: PathBuf,
+}
+
+impl Leitor {
+    fn abrir(caminho: &Path) -> Resultado<Self> {
+        Ok(Self {
+            arquivo: BufReader::new(File::open(caminho).ctx(Operacao::Abrir, caminho)?),
+            caminho: caminho.to_path_buf(),
+        })
+    }
+
+    fn posicionar(&mut self, posicao: u64) -> Resultado<()> {
+        self.arquivo
+            .seek(SeekFrom::Start(posicao))
+            .ctx(Operacao::Ler, &self.caminho)?;
+        Ok(())
+    }
+
+    fn erro(&self, e: io::Error) -> Erro {
+        erro_arquivo(Operacao::Ler, &self.caminho, e)
+    }
+}
+
 /// Representa uma imagem ISO Xbox/Xbox 360 já aberta, com sua estrutura
 /// GDF (Game Disc Format) analisada. Equivalente a `Chilano.Xbox360.Iso.GDF`.
 pub struct Gdf {
-    leitor: BufReader<File>,
+    leitor: Leitor,
     pub tipo: TipoIso,
     pub descritor: DescritorVolume,
     /// Árvore de diretórios da raiz. `None` só acontece se a leitura inicial
@@ -86,10 +113,14 @@ impl Gdf {
     /// de diretório raiz. Equivalente ao construtor `GDF(FileStream)`, que
     /// chama `readVolume()` e em seguida `new GDFDirTable(...)` para a raiz.
     pub fn abrir(caminho: &Path) -> Resultado<Self> {
-        let arquivo = File::open(caminho)?;
-        let mut leitor = BufReader::new(arquivo);
+        let mut leitor = Leitor::abrir(caminho)?;
 
-        let tamanho_arquivo = leitor.get_ref().metadata()?.len();
+        let tamanho_arquivo = leitor
+            .arquivo
+            .get_ref()
+            .metadata()
+            .ctx(Operacao::Consultar, caminho)?
+            .len();
         let (tipo, assinatura_confirmada) = detectar_tipo(&mut leitor)?;
         let descritor =
             ler_descritor_volume(&mut leitor, tipo, tamanho_arquivo, assinatura_confirmada)?;
@@ -242,16 +273,16 @@ impl Gdf {
 
         let posicao =
             self.descritor.deslocamento_raiz + setor as u64 * self.descritor.tamanho_setor as u64;
-        self.leitor.seek(SeekFrom::Start(posicao))?;
+        self.leitor.posicionar(posicao)?;
         let mut bytes = vec![0u8; tamanho as usize];
-        self.leitor.read_exact(&mut bytes).map_err(|e| {
+        self.leitor.arquivo.read_exact(&mut bytes).map_err(|e| {
             if e.kind() == std::io::ErrorKind::UnexpectedEof {
                 Erro::IsoInvalida(format!(
                     "não foi possível ler {tamanho} bytes do arquivo '{caminho}' \
                      (a imagem acabou antes do esperado)"
                 ))
             } else {
-                Erro::Io(e)
+                self.leitor.erro(e)
             }
         })?;
         Ok(bytes)
@@ -267,7 +298,7 @@ impl Gdf {
 /// palpite XGD3 da detecção só é aceito aqui se a assinatura estiver mesmo
 /// no deslocamento dele.
 pub fn tipo_da_imagem(caminho: &Path) -> Option<TipoIso> {
-    let mut leitor = BufReader::new(File::open(caminho).ok()?);
+    let mut leitor = Leitor::abrir(caminho).ok()?;
     let (tipo, confirmada) = detectar_tipo(&mut leitor).ok()?;
     if confirmada {
         return Some(tipo);
@@ -311,7 +342,7 @@ fn validar_leitura(
 /// Cada tabela lida entra no `orcamento` da imagem; estourá-lo é erro da
 /// imagem inteira (ver `processar_diretorio`).
 fn ler_tabela_diretorio(
-    leitor: &mut BufReader<File>,
+    leitor: &mut Leitor,
     descritor: &DescritorVolume,
     orcamento: &mut Orcamento,
     setor: u32,
@@ -327,9 +358,9 @@ fn ler_tabela_diretorio(
     orcamento.gastar(tamanho, 0)?;
 
     let posicao = descritor.deslocamento_raiz + setor as u64 * descritor.tamanho_setor as u64;
-    leitor.seek(SeekFrom::Start(posicao))?;
+    leitor.posicionar(posicao)?;
     let mut bytes = vec![0u8; tamanho as usize];
-    leitor.read_exact(&mut bytes).map_err(|e| {
+    leitor.arquivo.read_exact(&mut bytes).map_err(|e| {
         if e.kind() == std::io::ErrorKind::UnexpectedEof {
             Erro::IsoInvalida(format!(
                 "não foi possível ler {tamanho} bytes da tabela de diretório no setor {setor} \
@@ -337,7 +368,7 @@ fn ler_tabela_diretorio(
                  o tipo de disco (Xsf/XGD1/XGD2/XGD3) foi detectado incorretamente"
             ))
         } else {
-            Erro::Io(e)
+            leitor.erro(e)
         }
     })?;
     let tabela = TabelaDiretorio::ler(&bytes, setor, tamanho)?;
@@ -350,7 +381,7 @@ fn ler_tabela_diretorio(
 /// Equivalente a `GDF.ParseDirectory`.
 fn processar_diretorio(
     tabela: &mut TabelaDiretorio,
-    leitor: &mut BufReader<File>,
+    leitor: &mut Leitor,
     descritor: &DescritorVolume,
     orcamento: &mut Orcamento,
     ultimo_setor: &mut u32,
@@ -437,7 +468,7 @@ fn processar_diretorio(
 fn obter_pasta<'a>(
     tabela: &'a mut TabelaDiretorio,
     caminho: &str,
-    leitor: &mut BufReader<File>,
+    leitor: &mut Leitor,
     descritor: &DescritorVolume,
     orcamento: &mut Orcamento,
     profundidade: u32,
@@ -493,13 +524,13 @@ fn erro_nao_e_imagem_xbox() -> String {
 /// encontrada" em vez de erro — mesmo comportamento de `BinaryReader.ReadBytes`
 /// no original, que devolve um array truncado (e portanto nunca igual) ao
 /// invés de lançar exceção.
-fn assinatura_presente(leitor: &mut BufReader<File>, posicao: u64) -> Resultado<bool> {
-    leitor.seek(SeekFrom::Start(posicao))?;
+fn assinatura_presente(leitor: &mut Leitor, posicao: u64) -> Resultado<bool> {
+    leitor.posicionar(posicao)?;
     let mut buffer = [0u8; 20];
-    match leitor.read_exact(&mut buffer) {
+    match leitor.arquivo.read_exact(&mut buffer) {
         Ok(()) => Ok(&buffer == ASSINATURA_XBOX_MEDIA),
         Err(e) if e.kind() == std::io::ErrorKind::UnexpectedEof => Ok(false),
-        Err(e) => Err(e.into()),
+        Err(e) => Err(leitor.erro(e)),
     }
 }
 
@@ -516,7 +547,7 @@ fn assinatura_presente(leitor: &mut BufReader<File>, posicao: u64) -> Resultado<
 /// Devolve também se a assinatura foi de fato encontrada: `false` significa
 /// que caímos no palpite XGD3 sem confirmação nenhuma, e quem chama usa isso
 /// para dar uma mensagem honesta caso o descritor não confira.
-fn detectar_tipo(leitor: &mut BufReader<File>) -> Resultado<(TipoIso, bool)> {
+fn detectar_tipo(leitor: &mut Leitor) -> Resultado<(TipoIso, bool)> {
     let base = SETOR_ASSINATURA * TAMANHO_SETOR;
 
     if assinatura_presente(leitor, base + TipoIso::Xsf.deslocamento_raiz())? {
@@ -535,7 +566,7 @@ fn detectar_tipo(leitor: &mut BufReader<File>) -> Resultado<(TipoIso, bool)> {
 /// detectado, e calcula o tamanho/setores do volume a partir do tamanho do
 /// arquivo. Equivalente à segunda metade de `GDF::readVolume()`.
 fn ler_descritor_volume(
-    leitor: &mut BufReader<File>,
+    leitor: &mut Leitor,
     tipo: TipoIso,
     tamanho_arquivo: u64,
     assinatura_confirmada: bool,
@@ -543,11 +574,11 @@ fn ler_descritor_volume(
     let deslocamento_raiz = tipo.deslocamento_raiz();
     let posicao = SETOR_ASSINATURA * TAMANHO_SETOR + deslocamento_raiz;
 
-    leitor.seek(SeekFrom::Start(posicao))?;
+    leitor.posicionar(posicao)?;
     let mut bloco = [0u8; TAMANHO_DESCRITOR_VOLUME];
-    leitor.read_exact(&mut bloco).map_err(|e| {
+    leitor.arquivo.read_exact(&mut bloco).map_err(|e| {
         if e.kind() != std::io::ErrorKind::UnexpectedEof {
-            return Erro::Io(e);
+            return leitor.erro(e);
         }
         // Sem assinatura confirmada, o arquivo acabar antes do descritor não
         // quer dizer "imagem truncada": quer dizer que ele nunca foi uma
@@ -666,7 +697,7 @@ mod testes {
         assert!(gdf.raiz.is_none(), "a raiz absurda não pode ter sido lida");
 
         let erro = ler_tabela_diretorio(
-            &mut BufReader::new(File::open(&caminho).unwrap()),
+            &mut Leitor::abrir(&caminho).unwrap(),
             &gdf.descritor,
             &mut Orcamento::default(),
             100,

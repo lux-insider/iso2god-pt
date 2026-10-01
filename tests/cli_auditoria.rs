@@ -238,3 +238,33 @@ fn b7_icone_sem_fim_e_recusado_sem_ler_tudo() {
         "{saida}"
     );
 }
+
+/// E-1: a mensagem de uma falha de E/S diz o arquivo e a operação, em
+/// português. Antes: "erro de E/S: No such file or directory (os error 2)".
+#[test]
+fn e1_erro_de_es_diz_arquivo_e_operacao() {
+    let t = Temp::nova("e1");
+    let inexistente = t.0.join("nao-existe.iso");
+    let saida = converter(&inexistente, &t.0.join("destino"))
+        .output()
+        .unwrap();
+    assert_eq!(saida.status.code(), Some(1));
+    let texto = String::from_utf8(saida.stdout).unwrap();
+    let esperado = format!(
+        "não foi possível abrir {}: não existe",
+        inexistente.display()
+    );
+    assert!(texto.contains(&esperado), "{texto}");
+
+    // destino que é um arquivo: a pasta do pacote não pode ser criada
+    let iso = iso_grande(&t.0, 1);
+    let arquivo = t.0.join("destino-arquivo");
+    fs::write(&arquivo, b"x").unwrap();
+    let saida = converter(&iso, &arquivo).output().unwrap();
+    assert_eq!(saida.status.code(), Some(1));
+    let texto = String::from_utf8(saida.stdout).unwrap();
+    assert!(
+        texto.contains("não foi possível criar a pasta") && texto.contains("destino-arquivo"),
+        "{texto}"
+    );
+}

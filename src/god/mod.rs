@@ -12,7 +12,7 @@ use cabecalho::{EscritorCabecalho, TipoConteudo};
 use hashtable::{MasterHashTable, SubHashTable};
 
 use crate::cli::{Plataforma, RemocaoPadding};
-use crate::erro::{Erro, Resultado};
+use crate::erro::{Contexto, Erro, Operacao, Resultado, erro_arquivo};
 use crate::gdf::Gdf;
 use crate::progresso::Reporter;
 use crate::sistema;
@@ -434,14 +434,16 @@ fn converter_parcial(
     // chamada de sistema; descobrir no meio custa a conversão inteira.
     verificar_espaco(&opcoes.destino, tamanho_estimado_saida(blocos_necessarios))?;
 
-    fs::create_dir_all(&pasta_conteudo)?;
+    fs::create_dir_all(&pasta_conteudo).ctx(Operacao::CriarPasta, &pasta_conteudo)?;
     // O cabeçalho é o que faz o pacote aparecer no console. O de uma
     // conversão anterior do mesmo jogo seria sobrescrito só no fim; até lá
     // ele ficava ao lado das partes novas pela metade, e um processo morto
     // no meio (SIGKILL, queda de energia) deixava um pacote com cara de
     // pronto e partes faltando. Sai antes de qualquer parte ser tocada.
     match fs::remove_file(&arquivo_cabecalho) {
-        Err(e) if e.kind() != std::io::ErrorKind::NotFound => return Err(e.into()),
+        Err(e) if e.kind() != std::io::ErrorKind::NotFound => {
+            return Err(erro_arquivo(Operacao::Apagar, &arquivo_cabecalho, e));
+        }
         _ => {}
     }
     if pasta_dados.exists() {
@@ -449,9 +451,9 @@ fn converter_parcial(
             "diretório de saída já existe, substituindo: {}",
             pasta_dados.display()
         ));
-        fs::remove_dir_all(&pasta_dados)?;
+        fs::remove_dir_all(&pasta_dados).ctx(Operacao::Apagar, &pasta_dados)?;
     }
-    fs::create_dir_all(&pasta_dados)?;
+    fs::create_dir_all(&pasta_dados).ctx(Operacao::CriarPasta, &pasta_dados)?;
 
     // A partir daqui já existe saída no disco: qualquer falha (inclusive um
     // Ctrl+C) precisa passar pela limpeza, senão fica para trás uma pasta
@@ -628,7 +630,7 @@ fn converter_completa(opcoes: &OpcoesConversao, gdf: &mut Gdf) -> Resultado<()> 
     // ali dentro estoura a memória; mesmo quando /tmp é disco, gravar GB no
     // disco interno enquanto o destino é um HD externo é surpresa ruim. O PID
     // no nome evita que duas conversões simultâneas escrevam no mesmo arquivo.
-    fs::create_dir_all(&opcoes.destino)?;
+    fs::create_dir_all(&opcoes.destino).ctx(Operacao::CriarPasta, &opcoes.destino)?;
     let caminho_reconstruida = opcoes.destino.join(format!(
         ".iso2god-{}-{nome_base}.reconstruida.iso",
         std::process::id()
@@ -764,8 +766,11 @@ fn escrever_partes(
 
         let caminho_parte_atual = caminho_parte(pasta_dados, indice_parte);
         {
-            let arquivo = File::create(&caminho_parte_atual)?;
-            arquivo.set_len(tamanho_parte)?;
+            let arquivo =
+                File::create(&caminho_parte_atual).ctx(Operacao::Criar, &caminho_parte_atual)?;
+            arquivo
+                .set_len(tamanho_parte)
+                .ctx(Operacao::Gravar, &caminho_parte_atual)?;
         }
 
         let hashes = ler_e_hashear_paralelo(
@@ -864,8 +869,11 @@ fn processar_faixa(
     fim_local: u32,
     tx: &mpsc::Sender<Resultado<(u32, [u8; 20])>>,
 ) -> Resultado<()> {
-    let mut origem = File::open(caminho_origem)?;
-    let mut saida = OpenOptions::new().write(true).open(caminho_parte)?;
+    let mut origem = File::open(caminho_origem).ctx(Operacao::Abrir, caminho_origem)?;
+    let mut saida = OpenOptions::new()
+        .write(true)
+        .open(caminho_parte)
+        .ctx(Operacao::Abrir, caminho_parte)?;
     let tamanho_bloco = hashtable::TAMANHO_BLOCO as usize;
     let mut buffer = vec![0u8; BLOCOS_POR_SHT as usize * tamanho_bloco];
 
@@ -886,13 +894,17 @@ fn processar_faixa(
         let trecho = &mut buffer[..n * tamanho_bloco];
 
         let indice_global = indice_global_inicial + indice_local;
-        origem.seek(SeekFrom::Start(
-            deslocamento_raiz + indice_global as u64 * hashtable::TAMANHO_BLOCO as u64,
-        ))?;
-        ler_bloco(&mut origem, trecho)?;
+        origem
+            .seek(SeekFrom::Start(
+                deslocamento_raiz + indice_global as u64 * hashtable::TAMANHO_BLOCO as u64,
+            ))
+            .and_then(|_| ler_bloco(&mut origem, trecho))
+            .ctx(Operacao::Ler, caminho_origem)?;
 
-        saida.seek(SeekFrom::Start(offset_bloco_na_parte(indice_local)))?;
-        saida.write_all(trecho)?;
+        saida
+            .seek(SeekFrom::Start(offset_bloco_na_parte(indice_local)))
+            .and_then(|_| saida.write_all(trecho))
+            .ctx(Operacao::Gravar, caminho_parte)?;
 
         for (k, bloco) in trecho.chunks_exact(tamanho_bloco).enumerate() {
             tx.send(Ok((indice_local + k as u32, hashtable::sha1(bloco))))
@@ -913,7 +925,10 @@ fn montar_e_escrever_hashtables(
     hashes: &[[u8; 20]],
     shts_nesta_parte: u32,
 ) -> Resultado<()> {
-    let mut arquivo = OpenOptions::new().write(true).open(caminho_parte)?;
+    let mut arquivo = OpenOptions::new()
+        .write(true)
+        .open(caminho_parte)
+        .ctx(Operacao::Abrir, caminho_parte)?;
     let mut mht = MasterHashTable::nova();
 
     for indice_sht in 0..shts_nesta_parte {
@@ -925,14 +940,18 @@ fn montar_e_escrever_hashtables(
             sht.adicionar(*hash)?;
         }
 
-        arquivo.seek(SeekFrom::Start(offset_sht_na_parte(indice_sht)))?;
-        arquivo.write_all(&sht.para_bytes())?;
+        arquivo
+            .seek(SeekFrom::Start(offset_sht_na_parte(indice_sht)))
+            .and_then(|_| arquivo.write_all(&sht.para_bytes()))
+            .ctx(Operacao::Gravar, caminho_parte)?;
 
         mht.adicionar(hashtable::sha1(&sht.para_bytes()))?;
     }
 
-    arquivo.seek(SeekFrom::Start(0))?;
-    arquivo.write_all(&mht.para_bytes())?;
+    arquivo
+        .seek(SeekFrom::Start(0))
+        .and_then(|_| arquivo.write_all(&mht.para_bytes()))
+        .ctx(Operacao::Gravar, caminho_parte)?;
 
     Ok(())
 }
@@ -943,7 +962,7 @@ fn montar_e_escrever_hashtables(
 /// com zero, replicando o comportamento
 /// do original (que sempre aloca um array novo, já zerado, e ignora quantos
 /// bytes o `Read` efetivamente devolveu).
-fn ler_bloco(origem: &mut File, buffer: &mut [u8]) -> Resultado<()> {
+fn ler_bloco(origem: &mut File, buffer: &mut [u8]) -> std::io::Result<()> {
     let mut lidos = 0usize;
     loop {
         match origem.read(&mut buffer[lidos..])? {
@@ -962,16 +981,23 @@ fn ler_bloco(origem: &mut File, buffer: &mut [u8]) -> Resultado<()> {
 
 /// Lê a Master Hash Table já gravada no início de uma "Part".
 fn ler_mht_da_parte(caminho: &Path) -> Resultado<MasterHashTable> {
-    let mut arquivo = File::open(caminho)?;
+    let mut arquivo = File::open(caminho).ctx(Operacao::Abrir, caminho)?;
     let mut buffer = [0u8; hashtable::TAMANHO_TABELA];
-    arquivo.read_exact(&mut buffer)?;
+    arquivo
+        .read_exact(&mut buffer)
+        .ctx(Operacao::Ler, caminho)?;
     Ok(MasterHashTable::ler(&buffer))
 }
 
 /// Sobrescreve a Master Hash Table no início de uma "Part" já existente.
 fn escrever_mht_na_parte(caminho: &Path, mht: &MasterHashTable) -> Resultado<()> {
-    let mut arquivo = OpenOptions::new().write(true).open(caminho)?;
-    arquivo.write_all(&mht.para_bytes())?;
+    let mut arquivo = OpenOptions::new()
+        .write(true)
+        .open(caminho)
+        .ctx(Operacao::Abrir, caminho)?;
+    arquivo
+        .write_all(&mht.para_bytes())
+        .ctx(Operacao::Gravar, caminho)?;
     Ok(())
 }
 
@@ -990,7 +1016,9 @@ fn escrever_mht_na_parte(caminho: &Path, mht: &MasterHashTable) -> Resultado<()>
 /// arquivo, independente de haver ou não encadeamento a fazer.
 fn calcular_cadeia_mht(pasta_dados: &Path, partes_totais: u32) -> Resultado<(u64, [u8; 20])> {
     let caminho_ultima = caminho_parte(pasta_dados, partes_totais - 1);
-    let tamanho_ultima_parte = fs::metadata(&caminho_ultima)?.len();
+    let tamanho_ultima_parte = fs::metadata(&caminho_ultima)
+        .ctx(Operacao::Consultar, &caminho_ultima)?
+        .len();
 
     if partes_totais == 1 {
         let mht = ler_mht_da_parte(&caminho_ultima)?;
