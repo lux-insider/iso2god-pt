@@ -16,6 +16,9 @@ const FORMATO_ARGB: u8 = 6;
 /// Igual ao ARGB, mas o quarto byte não é alfa (a imagem é opaca). Usado
 /// por alguns jogos, como o Darkwatch.
 const FORMATO_XRGB: u8 = 7;
+/// Maior lado de miniatura cujo PNG ainda pode caber no cabeçalho (ver
+/// `decodificar`). As miniaturas do Xbox têm de 64×64 a 256×256.
+const LADO_MAXIMO: u32 = 2048;
 
 /// Uma textura já decodificada para RGBA8 (4 bytes por pixel, linha a
 /// linha, sem preenchimento entre linhas).
@@ -52,6 +55,17 @@ pub fn decodificar(dados: &[u8]) -> Resultado<Textura> {
             "expoente de tamanho de textura XPR inválido: {expoente_tamanho}"
         ))
     })?;
+    // A miniatura vira um PNG que tem que caber nos 16 KiB do cabeçalho. Um
+    // PNG RGBA de lado 4096 tem pelo menos 4096 × (1 + 4 × 4096) / 1032 ≈
+    // 65 KB (1032:1 é a maior compressão possível do deflate): seria
+    // descartado de qualquer jeito, depois de alocar e comprimir até 4 GiB
+    // de pixels.
+    if tamanho > LADO_MAXIMO {
+        return Err(Erro::IsoInvalida(format!(
+            "textura XPR declara um tamanho impossível para uma miniatura \
+             ({tamanho}x{tamanho}; o PNG não caberia no cabeçalho)"
+        )));
+    }
 
     let inicio_imagem = header_size as usize;
     let fim_imagem = file_size as usize;
