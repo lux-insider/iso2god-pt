@@ -19,8 +19,6 @@ png = "0.18.1"
 # outros programas sem precisar parsear a barra de terminal
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.151"
-# Embute o PNG do thumbnail no JSON de `info --json`
-base64 = "0.23.1"
 # Interface rica de terminal: largura visível de texto com emoji/acentos
 # (barra de progresso, caixas, gradiente). A largura do terminal vem de
 # `libc`/`windows-sys`, já usados abaixo.
