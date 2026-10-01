@@ -300,3 +300,24 @@ fn p2_reconstrucao_copia_em_trechos_grandes() {
     let fim_setor = (inicio + tamanho).div_ceil(S as usize) * S as usize;
     assert!(r[inicio + tamanho..fim_setor].iter().all(|&b| b == 0));
 }
+
+/// B-8: XEX de 1 KB com a tabela de recursos declarando 4 GiB. Antes, 268
+/// milhões de voltas (0,3 s em release, muito mais em depuração).
+#[test]
+fn b8_tabela_de_recursos_absurda_responde_rapido() {
+    let mut xex = vec![0u8; 0x400];
+    xex[0..4].copy_from_slice(b"XEX2");
+    xex[8..12].copy_from_slice(&0x400u32.to_be_bytes());
+    xex[16..20].copy_from_slice(&0x100u32.to_be_bytes());
+    xex[20..24].copy_from_slice(&1u32.to_be_bytes());
+    xex[24..28].copy_from_slice(&0x2FFu32.to_be_bytes());
+    xex[28..32].copy_from_slice(&0x300u32.to_be_bytes());
+    xex[0x300..0x304].copy_from_slice(&u32::MAX.to_be_bytes());
+    let inicio = Instant::now();
+    assert!(crate::xex::recursos::extrair_recurso(&xex, "4D5308BF").is_err());
+    assert!(
+        inicio.elapsed() < Duration::from_secs(1),
+        "levou {:?}",
+        inicio.elapsed()
+    );
+}
