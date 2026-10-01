@@ -1,4 +1,4 @@
-use crate::erro::{Erro, Resultado};
+use crate::erro::{Contexto, Erro, Operacao, Resultado};
 
 /// Tamanho total, em bytes, do cabeçalho LIVE escrito no início do container GOD.
 pub const TAMANHO_CABECALHO_LIVE: usize = 45_056;
@@ -296,7 +296,7 @@ impl EscritorCabecalho {
             self.buffer[offset] = 0;
         }
         self.escrever_hash_assinatura()?;
-        std::fs::write(caminho, self.buffer.as_slice())?;
+        std::fs::write(caminho, self.buffer.as_slice()).ctx(Operacao::Gravar, caminho)?;
         Ok(())
     }
 }

@@ -273,7 +273,7 @@ fn pausar(tema: &Tema) -> Resultado<()> {
     match io::stdin().read_line(&mut lixo) {
         Ok(_) => {}
         Err(e) if e.kind() == ErrorKind::Interrupted => sistema::limpar_cancelamento(),
-        Err(e) => return Err(e.into()),
+        Err(e) => return Err(Erro::Io(e)),
     }
     saida!();
     Ok(())
@@ -321,7 +321,7 @@ fn ler_linha(tema: &Tema, pergunta: &str) -> Resultado<Entrada> {
             saida!();
             return Ok(Entrada::Sair);
         }
-        Err(e) => return Err(e.into()),
+        Err(e) => return Err(Erro::Io(e)),
     }
 
     let texto = linha.trim().to_string();
