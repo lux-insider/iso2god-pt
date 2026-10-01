@@ -342,3 +342,35 @@ fn b9_miniatura_maior_que_o_cabecalho_e_recusada_sem_decodificar() {
     }
     assert!(inicio.elapsed() < Duration::from_secs(1));
 }
+
+/// P-3: com quatro threads, a da primeira faixa falha logo no começo.
+/// Antes, as outras três seguiam lendo e gravando a parte inteira até o
+/// fim antes de a falha aparecer; agora param no próximo grupo.
+#[test]
+fn p3_thread_que_falha_para_as_outras() {
+    use crate::god::{ler_e_hashear_paralelo, offset_bloco_na_parte};
+    let t = Temp::nova("p3");
+    let blocos = 8160u32; // 40 grupos de 204
+    let origem = t.0.join("origem.bin");
+    fs::write(&origem, vec![0xABu8; blocos as usize * 4096]).unwrap();
+    let parte = t.0.join("Data0000");
+    File::create(&parte)
+        .unwrap()
+        .set_len(offset_bloco_na_parte(blocos - 1) + 4096)
+        .unwrap();
+
+    *crate::god::testes::FALHA_DE_TESTE.lock().unwrap() = Some(parte.clone());
+    let reporter = crate::progresso::Reporter::novo(blocos, true);
+    let r = ler_e_hashear_paralelo(&origem, 0, &parte, 0, blocos, 4, &reporter);
+    *crate::god::testes::FALHA_DE_TESTE.lock().unwrap() = None;
+    assert!(r.is_err());
+
+    let gravada = fs::read(&parte).unwrap();
+    let escritos = (0..blocos)
+        .filter(|&i| gravada[offset_bloco_na_parte(i) as usize] == 0xAB)
+        .count();
+    assert!(
+        escritos < blocos as usize / 2,
+        "{escritos} de {blocos} blocos gravados depois da falha"
+    );
+}
