@@ -234,14 +234,14 @@ fn detectar_do_xex(gdf: &mut Gdf) -> MetadadosDetectados {
     let bytes = match gdf.ler_arquivo("default.xex") {
         Ok(bytes) => bytes,
         Err(e) => {
-            eprintln!("aviso: não foi possível ler o default.xex da imagem: {e}");
+            saida_erro!("aviso: não foi possível ler o default.xex da imagem: {e}");
             return MetadadosDetectados::default();
         }
     };
     let info = match xex::ler_info_execucao(&bytes) {
         Ok(info) => info,
         Err(e) => {
-            eprintln!("aviso: não foi possível interpretar o default.xex: {e}");
+            saida_erro!("aviso: não foi possível interpretar o default.xex: {e}");
             return MetadadosDetectados::default();
         }
     };
@@ -252,7 +252,7 @@ fn detectar_do_xex(gdf: &mut Gdf) -> MetadadosDetectados {
         Ok(t) => {
             let icone = match t.icone_png {
                 Some(png) if png.len() > cabecalho::MAX_ICONE => {
-                    eprintln!(
+                    saida_erro!(
                         "aviso: o ícone do jogo tem {} e não cabe no cabeçalho (máximo {}); \
                          seguindo sem ícone",
                         fmt_bytes(png.len() as u64),
@@ -265,7 +265,7 @@ fn detectar_do_xex(gdf: &mut Gdf) -> MetadadosDetectados {
             (t.titulo, icone)
         }
         Err(e) => {
-            eprintln!("aviso: não foi possível ler o nome e o ícone do jogo: {e}");
+            saida_erro!("aviso: não foi possível ler o nome e o ícone do jogo: {e}");
             (None, None)
         }
     };
@@ -293,14 +293,14 @@ fn detectar_do_xbe(gdf: &mut Gdf) -> MetadadosDetectados {
     let bytes = match gdf.ler_arquivo("default.xbe") {
         Ok(bytes) => bytes,
         Err(e) => {
-            eprintln!("aviso: não foi possível ler o default.xbe da imagem: {e}");
+            saida_erro!("aviso: não foi possível ler o default.xbe da imagem: {e}");
             return MetadadosDetectados::default();
         }
     };
     let info = match xbe::ler_info_certificado(&bytes) {
         Ok(info) => info,
         Err(e) => {
-            eprintln!("aviso: não foi possível interpretar o default.xbe: {e}");
+            saida_erro!("aviso: não foi possível interpretar o default.xbe: {e}");
             return MetadadosDetectados::default();
         }
     };
@@ -318,7 +318,7 @@ fn detectar_do_xbe(gdf: &mut Gdf) -> MetadadosDetectados {
         // poderia render um PNG maior que o campo do cabeçalho: nesse caso
         // seguimos sem ícone em vez de derrubar a conversão inteira.
         Ok(png) if png.len() > cabecalho::MAX_ICONE => {
-            eprintln!(
+            saida_erro!(
                 "aviso: o thumbnail extraído do default.xbe tem {} e não cabe no cabeçalho \
                  (máximo {}); seguindo sem ícone",
                 fmt_bytes(png.len() as u64),
@@ -328,7 +328,7 @@ fn detectar_do_xbe(gdf: &mut Gdf) -> MetadadosDetectados {
         }
         Ok(png) => Some(png),
         Err(e) => {
-            eprintln!("aviso: não foi possível extrair o thumbnail do default.xbe: {e}");
+            saida_erro!("aviso: não foi possível extrair o thumbnail do default.xbe: {e}");
             None
         }
     };

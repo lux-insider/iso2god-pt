@@ -11,7 +11,7 @@
 //! é só uma questão de *como* o progresso (já calculado a partir de
 //! bytes/blocos reais) chega para fora.
 
-use std::io::{IsTerminal, Write};
+use std::io::IsTerminal;
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Instant;
@@ -51,7 +51,7 @@ pub enum EventoProgresso {
 
 fn emitir(evento: &EventoProgresso) {
     if let Ok(linha) = serde_json::to_string(evento) {
-        println!("{linha}");
+        saida!("{linha}");
     }
 }
 
@@ -79,7 +79,7 @@ pub fn anunciar_fase(fase: &'static str, mensagem: &str, json: bool) {
         });
     } else {
         let tema = Tema::detectar();
-        println!(
+        saida!(
             "\n{} {}",
             tema_seta(&tema),
             tema.c(mensagem, &[&c::branco(), NEG])
@@ -154,7 +154,7 @@ impl Reporter {
     pub fn fase(&self, fase: &'static str, mensagem: &str) {
         match self {
             Reporter::Rico(estado) => {
-                println!(
+                saida!(
                     "\n{} {}",
                     tema_seta(&estado.tema),
                     estado.tema.c(mensagem, &[&c::branco(), NEG])
@@ -195,8 +195,7 @@ impl Reporter {
     /// impressa depois sairia colada nos restos dela.
     pub fn interromper_barra(&self) {
         if matches!(self, Reporter::Rico(_)) && std::io::stdout().is_terminal() {
-            print!("{}", crate::terminal::limpar_linha());
-            let _ = std::io::stdout().flush();
+            saida_sem_linha!("{}", crate::terminal::limpar_linha());
         }
     }
 
