@@ -28,7 +28,12 @@ que a 0.1.4 grava em seis cenários com ISOs sintéticas:
 Cada teste também confere no cabeçalho o título (as duas cópias), o ícone e o
 número do disco, para garantir que o golden cobre a leitura do XEX/XBE e não
 um caminho de reserva. Uma correção que mudaria esses bytes não foi aplicada:
-ficou só descrita (marcada **só descrito**), com o motivo.
+ficou só descrita (marcada **só descrito**), com o motivo. A exceção são o
+N-1 e o N-2, corrigidos depois com autorização do mantenedor: eles mudam de
+propósito um único valor golden, o do `--padding completa` da imagem com
+"Canção.ogg" em Latin-1 (ver os itens). Antes dessa correção entrou um
+sétimo cenário, `--padding completa` em imagens só com nomes ASCII, que
+continua idêntico.
 
 ## Gravidade
 
@@ -70,8 +75,8 @@ S-4 (link simbólico plantado no destino).
 | P-3 | Baixa | `god/mod.rs:771-828` | uma thread que falha não para as outras | corrigido em `d6e08f2` |
 | L-1 | Baixa | `Cargo.toml`, `terminal.rs:299-303` | `terminal_size` puxa `rustix` e `linux-raw-sys` para ler a largura | corrigido em `65165e0` |
 | L-2 | Baixa | `Cargo.toml`, `analise.rs:79-81, 100-102` | `base64` inteiro para codificar um PNG | corrigido em `1ecb92c` |
-| N-1 | Alta | `gdf/diretorio.rs:51, 73-78` | `--padding completa` grava nomes não-ASCII como `?` | **só descrito** (muda bytes) |
-| N-2 | Média | `god/reconstrucao.rs:203-210, 229-237` | `--padding completa` casa entradas pelo nome: nomes repetidos copiam o arquivo errado | **só descrito** (muda bytes) |
+| N-1 | Alta | `gdf/diretorio.rs:51, 73-78` | `--padding completa` grava nomes não-ASCII como `?` | corrigido depois (autorizado; muda o `--padding completa` com nomes não-ASCII) |
+| N-2 | Média | `god/reconstrucao.rs:203-210, 229-237` | `--padding completa` casa entradas pelo nome: nomes repetidos copiam o arquivo errado | corrigido depois (autorizado) |
 | N-3 | Baixa | `god/mod.rs:403`, `1052-1061` | `--title-id` em minúsculas: pasta em maiúsculas, nome único calculado com minúsculas | **só descrito** (muda bytes) |
 | N-4 | Baixa | `gdf/diretorio.rs:95-152` | varredura linear conta entradas de lixo no fim da tabela | **só descrito** (pode mudar o corte) |
 | N-5 | Baixa | `xex/recursos.rs:139` | limite da compressão básica é o maior entre o declarado e 256 MiB | **só descrito** (pode recusar XEX aceito hoje) |
@@ -430,27 +435,62 @@ uso. O `thiserror 1` traz o `syn 2` além do `syn 3` usado por `clap` e
 exatamente na mesma versão e configuração: o PNG da miniatura do XBE vai
 para o cabeçalho.
 
-## 7. Só descritos: mudariam os bytes gravados
+## 7. Mudariam os bytes gravados
 
-### N-1 (Alta, só descrito) — `--padding completa` grava nomes não-ASCII como `?`
+O N-1 e o N-2 foram corrigidos depois, com autorização do mantenedor; os
+outros continuam só descritos.
+
+### N-1 (Alta, corrigido depois) — `--padding completa` grava nomes não-ASCII como `?`
 
 `gdf/diretorio.rs:73-78` decodifica os nomes como o `Encoding.ASCII` do
 .NET (byte ≥ 0x80 vira `?`), e `diretorio.rs:51` grava esse texto de volta
 na GDF reconstruída. Um arquivo `Canção.ogg` (Latin-1) vira `Can??o.ogg` no
-pacote: o jogo procura o nome original e não acha. Os goldens registram
-exatamente isso. A correção (guardar e gravar os bytes originais do nome)
-muda os bytes do pacote para essas imagens, então **não foi aplicada**. Só
-afeta `--padding completa` com nomes fora do ASCII; `parcial` e `nenhuma`
-copiam os setores como estão.
+pacote (em UTF-8, `Can????o.ogg`): o jogo procura o nome original e não
+acha. Só afeta `--padding completa` com nomes fora do ASCII; `parcial` e
+`nenhuma` copiam os setores como estão.
 
-### N-2 (Média, só descrito) — reconstrução casa entradas pelo nome
+*Corrigido com autorização do mantenedor* (commit "--padding completa grava
+os nomes com os bytes do disco (N-1)"). Cada entrada guarda também os bytes
+do nome como estão no disco (`EntradaDiretorio::bytes_nome`), e é isso que
+a reconstrução grava. O texto com `?` continua sendo o que aparece na tela e
+o que se usa para procurar o `default.xex`; num nome ASCII o texto e os
+bytes são iguais.
+
+*Golden que mudou de propósito:* só "Xbox 360, XEX com compressão básica,
+padding completa", cuja imagem tem `Canção.ogg` em Latin-1. Comparando a
+parte gerada antes e depois, mudam 42 bytes: os 2 do nome (`3F 3F` →
+`E7 E3`), os 20 do SHA-1 desse bloco na Sub Hash Table e os 20 do SHA-1
+dessa SHT na Master Hash Table; o cabeçalho muda junto, porque guarda o
+hash da MHT. Os outros goldens, inclusive o novo de `--padding completa`
+só com nomes ASCII, não mudaram.
+
+*Testes* (`tests/nomes_padding_completa.rs`, que tiram a GDF reconstruída
+de dentro do pacote e a percorrem seguindo a árvore, como o console): um
+nome Latin-1 com acento e nomes UTF-8 com acento (arquivo, pasta e arquivo
+dentro dela) saem com os mesmos bytes. Falham no código anterior.
+
+### N-2 (Média, corrigido depois) — reconstrução casa entradas pelo nome
 
 `god/reconstrucao.rs:203-210, 229-237`. A árvore remapeada é um clone da
 original, mas as duas são casadas por nome (`encontrar`, sem diferenciar
 maiúsculas), não por posição. Dois nomes iguais na mesma pasta — por
-diferença só de maiúsculas, ou por virarem o mesmo texto depois do N-1 —
-fazem o segundo receber os dados do primeiro. Casar por posição corrige,
-mas muda os bytes para essas imagens.
+diferença só de maiúsculas, ou por virarem o mesmo texto no N-1
+(`Pão.txt` e `Pâo.txt` viram `P?o.txt`) — fazem o segundo receber os dados
+do primeiro.
+
+*Corrigido com autorização do mantenedor* (commit "--padding completa casa
+as árvores pela posição, não pelo nome (N-2)"). As duas árvores são
+percorridas juntas, pela posição, nos arquivos e nas subpastas. Numa imagem
+sem nomes repetidos a posição e o nome apontam para a mesma entrada, e
+nenhum golden mudou. O único caso só com ASCII em que o pacote muda é o de
+dois nomes na mesma pasta que só diferem por maiúsculas: o XDVDFS compara
+nomes sem diferenciar maiúsculas, então essa imagem não é válida (o console
+só acha um dos dois), e a saída antiga já estava errada.
+
+*Testes:* dois pares de arquivos cujos nomes só diferem por acento (em
+Latin-1 e em UTF-8) e um par que só difere por maiúsculas mantêm cada um os
+seus próprios dados no pacote. Falham no código anterior, inclusive com o
+N-1 já corrigido.
 
 ### N-3 (Baixa, só descrito) — Title ID em minúsculas
 
@@ -543,14 +583,13 @@ bytes, e o L-1 e o L-2 tiraram cerca de 7 KB e cinco pacotes da compilação
 
 ### Para decisão do mantenedor (não aplicado)
 
-1. **N-1 e N-2** — nomes não-ASCII e nomes repetidos no
-   `--padding completa`. É o achado mais grave sem correção: o pacote sai
-   com nomes que o jogo não acha. A correção muda os bytes do pacote
-   para essas imagens (só elas), então precisa de autorização.
-2. **N-3** — normalizar o Title ID digitado em minúsculas (muda o nome do
+1. **N-3** — normalizar o Title ID digitado em minúsculas (muda o nome do
    pacote).
-3. **N-4, N-5** — semântica da varredura das tabelas e limite da
+2. **N-4, N-5** — semântica da varredura das tabelas e limite da
    compressão básica; baixo risco, sem pressa.
-4. **C-1** — fila leitura → hash → gravação com uma leitora só, medida
+3. **C-1** — fila leitura → hash → gravação com uma leitora só, medida
    num HD de verdade; e o padrão de `-j`.
-5. **S-5** — limpeza de ISOs reconstruídas esquecidas por um SIGKILL.
+4. **S-5** — limpeza de ISOs reconstruídas esquecidas por um SIGKILL.
+
+O N-1 e o N-2, que abriam esta lista, foram corrigidos depois com
+autorização (ver os itens): eram os achados mais graves sem correção.
