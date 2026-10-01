@@ -24,19 +24,33 @@ static CANCELADO: AtomicBool = AtomicBool::new(false);
 /// `true` depois que o usuário apertou Ctrl+C. Consultado entre blocos da
 /// conversão (ver `crate::god`), nunca no meio de uma escrita.
 pub fn cancelado() -> bool {
+    #[cfg(test)]
+    if CANCELADO_TESTE.get() {
+        return true;
+    }
     CANCELADO.load(Ordering::SeqCst)
 }
 
 /// Limpa o sinalizador. Usado pelo assistente ao voltar para o menu depois
 /// de uma conversão cancelada — o próximo item começa do zero.
 pub fn limpar_cancelamento() {
+    #[cfg(test)]
+    CANCELADO_TESTE.set(false);
     CANCELADO.store(false, Ordering::SeqCst);
+}
+
+// Nos testes, o cancelamento simulado vale só para a thread do teste que o
+// pediu: os testes rodam em paralelo, e um pedido global faria outro teste
+// (que só lê uma árvore, por exemplo) receber `Cancelado` no meio.
+#[cfg(test)]
+thread_local! {
+    static CANCELADO_TESTE: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
 }
 
 /// Marca cancelamento sem passar por sinal (usado em testes).
 #[cfg(test)]
 pub fn marcar_cancelamento() {
-    CANCELADO.store(true, Ordering::SeqCst);
+    CANCELADO_TESTE.set(true);
 }
 
 #[cfg(unix)]
@@ -61,10 +75,15 @@ extern "C" fn tratar_sigterm(_sinal: libc::c_int) {
     CANCELADO.store(true, Ordering::SeqCst);
 }
 
-/// Instala os handlers de Ctrl+C (SIGINT) e SIGTERM. Deliberadamente **sem**
-/// `SA_RESTART`: assim um `read` bloqueado num prompt do assistente devolve
-/// `EINTR` em vez de ser reiniciado silenciosamente, e quem estiver esperando
-/// entrada percebe o cancelamento na hora.
+/// Instala os handlers de Ctrl+C (SIGINT), SIGTERM e SIGHUP. Deliberadamente
+/// **sem** `SA_RESTART`: assim um `read` bloqueado num prompt do assistente
+/// devolve `EINTR` em vez de ser reiniciado silenciosamente, e quem estiver
+/// esperando entrada percebe o cancelamento na hora.
+///
+/// SIGHUP chega quando o terminal é fechado; sem tratador, ele matava o
+/// processo no meio e deixava a saída pela metade. Ele cancela como o
+/// SIGTERM — a não ser que já chegue ignorado (`nohup`): quem rodou assim
+/// quer que a operação continue sem o terminal.
 #[cfg(unix)]
 pub fn instalar_cancelamento() {
     unsafe fn instalar(sinal: libc::c_int, tratador: extern "C" fn(libc::c_int)) {
@@ -79,6 +98,12 @@ pub fn instalar_cancelamento() {
     unsafe {
         instalar(libc::SIGINT, tratar_sigint);
         instalar(libc::SIGTERM, tratar_sigterm);
+        let mut atual: libc::sigaction = std::mem::zeroed();
+        let ignorado = libc::sigaction(libc::SIGHUP, std::ptr::null(), &mut atual) == 0
+            && atual.sa_sigaction == libc::SIG_IGN;
+        if !ignorado {
+            instalar(libc::SIGHUP, tratar_sigterm);
+        }
     }
 }
 
@@ -86,16 +111,36 @@ pub fn instalar_cancelamento() {
 /// regra do Linux: o primeiro marca o cancelamento (a conversão para no
 /// próximo bloco e apaga a saída incompleta); o segundo devolve `FALSE` e o
 /// sistema encerra o processo na hora, para quem não quer esperar.
+///
+/// Fechar a janela do console, sair da sessão ou desligar chegam como
+/// `CTRL_CLOSE_EVENT`, `CTRL_LOGOFF_EVENT` e `CTRL_SHUTDOWN_EVENT`. Para
+/// eles o Windows encerra o processo assim que o tratador volta (e, de
+/// qualquer jeito, uns 5 s depois). Então o tratador marca o cancelamento e
+/// espera: nesse tempo a thread principal vê o pedido, apaga o que a
+/// operação criou e sai pelo `process::exit`, que encerra o processo (e
+/// esta espera) antes do prazo.
 #[cfg(windows)]
 unsafe extern "system" fn tratar_console(tipo: u32) -> windows_sys::Win32::Foundation::BOOL {
-    use windows_sys::Win32::System::Console::{CTRL_BREAK_EVENT, CTRL_C_EVENT};
-    if tipo != CTRL_C_EVENT && tipo != CTRL_BREAK_EVENT {
-        return 0;
-    }
-    if CANCELADO.swap(true, Ordering::SeqCst) {
-        0
-    } else {
-        1
+    use windows_sys::Win32::System::Console::{
+        CTRL_BREAK_EVENT, CTRL_C_EVENT, CTRL_CLOSE_EVENT, CTRL_LOGOFF_EVENT, CTRL_SHUTDOWN_EVENT,
+    };
+    match tipo {
+        CTRL_C_EVENT | CTRL_BREAK_EVENT => {
+            if CANCELADO.swap(true, Ordering::SeqCst) {
+                0
+            } else {
+                1
+            }
+        }
+        CTRL_CLOSE_EVENT | CTRL_LOGOFF_EVENT | CTRL_SHUTDOWN_EVENT => {
+            CANCELADO.store(true, Ordering::SeqCst);
+            let inicio = std::time::Instant::now();
+            while inicio.elapsed() < std::time::Duration::from_millis(4500) {
+                std::thread::sleep(std::time::Duration::from_millis(50));
+            }
+            1
+        }
+        _ => 0,
     }
 }
 
@@ -210,5 +255,38 @@ mod testes {
         assert!(cancelado());
         limpar_cancelamento();
         assert!(!cancelado());
+    }
+
+    /// S-2: SIGHUP (terminal fechado) cancela como o SIGTERM, mas não quando
+    /// já chega ignorado (`nohup`).
+    #[cfg(unix)]
+    #[test]
+    fn s2_sighup_cancela_mas_respeita_nohup() {
+        // Confere o tratador instalado, sem disparar o sinal: o
+        // cancelamento é global e outros testes rodam em paralelo. O sinal
+        // de verdade é testado com o programa em tests/cli_auditoria.rs.
+        fn tratador_do_sighup() -> libc::sighandler_t {
+            unsafe {
+                let mut atual: libc::sigaction = std::mem::zeroed();
+                libc::sigaction(libc::SIGHUP, std::ptr::null(), &mut atual);
+                atual.sa_sigaction
+            }
+        }
+        unsafe {
+            // como o nohup deixa
+            libc::signal(libc::SIGHUP, libc::SIG_IGN);
+            instalar_cancelamento();
+        }
+        assert_eq!(
+            tratador_do_sighup(),
+            libc::SIG_IGN,
+            "com nohup, fica ignorado"
+        );
+        unsafe {
+            libc::signal(libc::SIGHUP, libc::SIG_DFL);
+            instalar_cancelamento();
+        }
+        let esperado = tratar_sigterm as extern "C" fn(libc::c_int) as libc::sighandler_t;
+        assert_eq!(tratador_do_sighup(), esperado, "SIGHUP deveria cancelar");
     }
 }
