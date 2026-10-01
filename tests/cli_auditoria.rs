@@ -163,3 +163,35 @@ fn s2_sighup_cancela_e_apaga_a_saida() {
         arquivos(&destino).iter().map(|a| &a.0).collect::<Vec<_>>()
     );
 }
+
+/// S-3: converter de novo o mesmo jogo para o mesmo destino e o processo
+/// morrer no meio. Antes, o cabeçalho da conversão anterior ficava ao lado
+/// das partes novas pela metade: um pacote com cara de pronto, corrompido.
+#[cfg(unix)]
+#[test]
+fn s3_conversao_interrompida_nao_deixa_cabecalho_antigo_com_dados_novos() {
+    let t = Temp::nova("s3");
+    let destino = t.0.join("destino");
+    let cabecalho = destino.join("4D5308BF/00007000/FE40C7D9CF2D599EB911");
+
+    let pequena = t.0.join("pequena");
+    fs::create_dir_all(&pequena).unwrap();
+    let ok = converter(&iso_grande(&pequena, 8), &destino)
+        .output()
+        .unwrap();
+    assert_eq!(ok.status.code(), Some(0));
+    assert!(
+        cabecalho.is_file(),
+        "a primeira conversão grava o cabeçalho"
+    );
+
+    let grande = t.0.join("grande");
+    fs::create_dir_all(&grande).unwrap();
+    let mut filho = conversao_em_andamento(&iso_grande(&grande, 2048), &destino);
+    filho.kill().unwrap();
+    filho.wait().unwrap();
+    assert!(
+        !cabecalho.exists(),
+        "o cabeçalho antigo não pode ficar ao lado das partes novas pela metade"
+    );
+}
