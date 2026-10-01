@@ -174,24 +174,7 @@ fn resolver_metadados(opcoes: &OpcoesConversao, gdf: &mut Gdf) -> Resultado<Meta
     // descobrir lá que o PNG não cabe significaria jogar fora uma conversão
     // inteira já concluída.
     let icone = match opcoes.icone.as_deref() {
-        Some(caminho) => {
-            let dados = fs::read(caminho).map_err(|e| {
-                Erro::IsoInvalida(format!(
-                    "não foi possível ler o ícone '{}': {e}",
-                    caminho.display()
-                ))
-            })?;
-            if dados.len() > cabecalho::MAX_ICONE {
-                return Err(Erro::IsoInvalida(format!(
-                    "o ícone '{}' tem {} e o campo de thumbnail do cabeçalho comporta no \
-                     máximo {}; use uma imagem menor",
-                    caminho.display(),
-                    fmt_bytes(dados.len() as u64),
-                    fmt_bytes(cabecalho::MAX_ICONE as u64)
-                )));
-            }
-            Some(dados)
-        }
+        Some(caminho) => Some(ler_icone(caminho)?),
         None => detectado.icone,
     };
 
@@ -206,6 +189,38 @@ fn resolver_metadados(opcoes: &OpcoesConversao, gdf: &mut Gdf) -> Resultado<Meta
         tipo_executavel_byte,
         icone,
     })
+}
+
+/// Lê o PNG de `--icone`, no máximo um byte além do que cabe no cabeçalho:
+/// ler o arquivo inteiro antes de conferir o tamanho nunca terminava com
+/// `/dev/zero` e carregava gigabytes com a ISO passada por engano.
+fn ler_icone(caminho: &Path) -> Resultado<Vec<u8>> {
+    let mut dados = Vec::new();
+    File::open(caminho)
+        .and_then(|f| {
+            f.take(cabecalho::MAX_ICONE as u64 + 1)
+                .read_to_end(&mut dados)
+        })
+        .map_err(|e| {
+            Erro::IsoInvalida(format!(
+                "não foi possível ler o ícone '{}': {e}",
+                caminho.display()
+            ))
+        })?;
+    if dados.len() > cabecalho::MAX_ICONE {
+        let tamanho = fs::metadata(caminho)
+            .ok()
+            .filter(|m| m.is_file())
+            .map(|m| fmt_bytes(m.len()))
+            .unwrap_or_else(|| format!("mais de {}", fmt_bytes(cabecalho::MAX_ICONE as u64)));
+        return Err(Erro::IsoInvalida(format!(
+            "o ícone '{}' tem {tamanho} e o campo de thumbnail do cabeçalho comporta no \
+             máximo {}; use uma imagem menor",
+            caminho.display(),
+            fmt_bytes(cabecalho::MAX_ICONE as u64)
+        )));
+    }
+    Ok(dados)
 }
 
 /// Metadados que foi possível detectar automaticamente a partir do

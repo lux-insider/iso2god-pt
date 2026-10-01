@@ -195,3 +195,46 @@ fn s3_conversao_interrompida_nao_deixa_cabecalho_antigo_com_dados_novos() {
         "o cabeçalho antigo não pode ficar ao lado das partes novas pela metade"
     );
 }
+
+/// Espera o processo terminar em até `limite`; se não terminar, mata e
+/// falha o teste.
+fn esperar(
+    filho: &mut std::process::Child,
+    limite: std::time::Duration,
+) -> std::process::ExitStatus {
+    let inicio = std::time::Instant::now();
+    loop {
+        if let Some(status) = filho.try_wait().unwrap() {
+            return status;
+        }
+        if inicio.elapsed() > limite {
+            filho.kill().ok();
+            filho.wait().ok();
+            panic!("o processo não terminou em {limite:?}");
+        }
+        std::thread::sleep(std::time::Duration::from_millis(50));
+    }
+}
+
+/// B-7: `--icone /dev/zero`. Antes, o arquivo era lido inteiro antes de
+/// conferir o tamanho: a leitura nunca terminava e esgotava a memória.
+#[cfg(unix)]
+#[test]
+fn b7_icone_sem_fim_e_recusado_sem_ler_tudo() {
+    let t = Temp::nova("b7");
+    let iso = iso_grande(&t.0, 1);
+    let mut filho = converter(&iso, &t.0.join("destino"))
+        .args(["--icone", "/dev/zero"])
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()
+        .unwrap();
+    let status = esperar(&mut filho, std::time::Duration::from_secs(30));
+    assert_eq!(status.code(), Some(1));
+    let mut saida = String::new();
+    std::io::Read::read_to_string(&mut filho.stdout.take().unwrap(), &mut saida).unwrap();
+    assert!(
+        saida.contains("ícone") && saida.contains("mais de 16"),
+        "{saida}"
+    );
+}
