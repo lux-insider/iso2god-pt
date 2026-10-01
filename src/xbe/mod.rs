@@ -175,11 +175,7 @@ fn encontrar_secao_thumbnail(xbe: &[u8]) -> Resultado<&[u8]> {
             let Some(offset_nome) = nome_address.checked_sub(base_address) else {
                 continue;
             };
-            let Some(nome) = ler_string_ascii_ate_nul(xbe, offset_nome as usize) else {
-                continue;
-            };
-
-            if nome != nome_procurado {
+            if !nome_igual(xbe, offset_nome as usize, nome_procurado) {
                 continue;
             }
 
@@ -199,10 +195,15 @@ fn encontrar_secao_thumbnail(xbe: &[u8]) -> Resultado<&[u8]> {
     ))
 }
 
-fn ler_string_ascii_ate_nul(bytes: &[u8], offset: usize) -> Option<String> {
-    let fatia = bytes.get(offset..)?;
-    let fim = fatia.iter().position(|&b| b == 0)?;
-    Some(fatia[..fim].iter().map(|&b| b as char).collect())
+/// O nome terminado em zero que começa em `offset` é `nome`? Confere só os
+/// `nome.len() + 1` bytes necessários. Ler o texto até o zero, como antes,
+/// percorria o arquivo inteiro a cada seção quando o nome apontava para uma
+/// região sem zero: num XBE de 8 MB com 75 mil seções, 239 s.
+fn nome_igual(bytes: &[u8], offset: usize, nome: &str) -> bool {
+    let Some(fim) = offset.checked_add(nome.len()) else {
+        return false;
+    };
+    bytes.get(offset..fim) == Some(nome.as_bytes()) && bytes.get(fim) == Some(&0)
 }
 
 fn ler_u32_le(bytes: &[u8], offset: usize) -> u32 {

@@ -115,3 +115,28 @@ fn b1_tabelas_compartilhadas_esgotam_o_orcamento_em_vez_da_memoria() {
         inicio.elapsed()
     );
 }
+
+/// B-2: XBE de 8 MB com dezenas de milhares de seções cujo nome aponta para
+/// uma cauda sem zero. Antes, cada seção relia o arquivo até o fim: 239 s.
+#[test]
+fn b2_xbe_com_muitas_secoes_sem_nome_terminado_responde_rapido() {
+    let n = 8 * 1024 * 1024;
+    let mut b = vec![0x41u8; n];
+    b[0..4].copy_from_slice(b"XBEH");
+    let base = 0x1_0000u32;
+    b[260..264].copy_from_slice(&base.to_le_bytes());
+    b[284..288].copy_from_slice(&u32::MAX.to_le_bytes());
+    b[288..292].copy_from_slice(&(base + 0x200).to_le_bytes());
+    let mut p = 0x200;
+    while p + 56 <= n / 2 {
+        b[p + 20..p + 24].copy_from_slice(&(base + (n / 2) as u32).to_le_bytes());
+        p += 56;
+    }
+    let inicio = Instant::now();
+    assert!(crate::xbe::extrair_thumbnail(&b).is_err());
+    assert!(
+        inicio.elapsed() < Duration::from_secs(10),
+        "levou {:?}",
+        inicio.elapsed()
+    );
+}
