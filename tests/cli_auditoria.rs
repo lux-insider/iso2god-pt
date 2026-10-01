@@ -125,6 +125,7 @@ fn s1_saida_fechada_nao_interrompe_a_conversao() {
 
 /// Converte em segundo plano e devolve o processo depois que a gravação
 /// das partes começou (o evento da fase "convertendo" já saiu).
+#[cfg(unix)]
 fn conversao_em_andamento(iso: &Path, destino: &Path) -> std::process::Child {
     let mut filho = converter(iso, destino)
         .stdout(Stdio::piped())
@@ -198,6 +199,7 @@ fn s3_conversao_interrompida_nao_deixa_cabecalho_antigo_com_dados_novos() {
 
 /// Espera o processo terminar em até `limite`; se não terminar, mata e
 /// falha o teste.
+#[cfg(unix)]
 fn esperar(
     filho: &mut std::process::Child,
     limite: std::time::Duration,
