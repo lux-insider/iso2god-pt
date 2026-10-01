@@ -281,9 +281,14 @@ fn escrever_arquivos(
     Ok(())
 }
 
-/// Copia um arquivo do setor de origem para o setor de destino, em blocos
-/// de um setor inteiro (2048 bytes) — o último, se parcial, é preenchido
-/// com zero até completar o setor. Equivalente a `GDF.WriteFileToStream`.
+/// Setores copiados por chamada de leitura e de gravação (1 MiB).
+const SETORES_POR_TRECHO: u32 = 512;
+
+/// Copia um arquivo do setor de origem para o setor de destino, setor a
+/// setor — o último, se parcial, é preenchido com zero até completar o
+/// setor. Equivalente a `GDF.WriteFileToStream`. A cópia anda em trechos de
+/// 1 MiB (antes, uma leitura e uma gravação de 2 KiB por setor: 1 milhão de
+/// chamadas ao sistema por GiB); os bytes gravados são os mesmos.
 fn copiar_arquivo(
     saida: &mut Aberto,
     origem: &mut Aberto,
@@ -298,23 +303,24 @@ fn copiar_arquivo(
     )?;
     saida.ir(setor_destino as u64 * TAMANHO_SETOR, Operacao::Gravar)?;
 
-    let setores = tamanho_para_setores(tamanho);
-    let mut restante = tamanho as u64;
-    let mut buffer = [0u8; TAMANHO_SETOR as usize];
+    let mut setores = tamanho_para_setores(tamanho);
+    let mut restante = tamanho as usize;
+    let mut buffer = vec![0u8; (setores.min(SETORES_POR_TRECHO) as u64 * TAMANHO_SETOR) as usize];
 
-    for _ in 0..setores {
+    while setores > 0 {
         // Mesma lógica de `god::processar_faixa`: o Ctrl+C precisa conseguir
         // parar uma reconstrução de vários GB num ponto conhecido.
         if crate::sistema::cancelado() {
             return Err(Erro::Cancelado);
         }
-        let a_ler = (TAMANHO_SETOR as usize).min(restante as usize);
-        origem.ler_exato(&mut buffer[..a_ler])?;
-        if a_ler < buffer.len() {
-            buffer[a_ler..].fill(0);
-        }
-        saida.gravar(&buffer)?;
-        restante = restante.saturating_sub(a_ler as u64);
+        let n = setores.min(SETORES_POR_TRECHO);
+        let trecho = &mut buffer[..(n as u64 * TAMANHO_SETOR) as usize];
+        let a_ler = trecho.len().min(restante);
+        origem.ler_exato(&mut trecho[..a_ler])?;
+        trecho[a_ler..].fill(0);
+        saida.gravar(trecho)?;
+        restante -= a_ler;
+        setores -= n;
     }
 
     Ok(())

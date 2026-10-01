@@ -253,3 +253,50 @@ fn s4_link_no_destino_nao_redireciona_a_gravacao() {
     assert_eq!(fs::read(&alvo).unwrap(), original, "ISO reconstruída");
     assert!(!e_link(&reconstruida));
 }
+
+/// Chamadas `write` feitas por esta thread até agora (Linux).
+#[cfg(target_os = "linux")]
+fn gravacoes_desta_thread() -> u64 {
+    let io = fs::read_to_string("/proc/thread-self/io").unwrap();
+    io.lines()
+        .find_map(|l| l.strip_prefix("syscw: "))
+        .unwrap()
+        .trim()
+        .parse()
+        .unwrap()
+}
+
+/// P-2: a reconstrução do `--padding completa` copiava 2 KiB por chamada.
+/// Um arquivo de 8 MiB custava 4.096 gravações; agora, oito.
+#[cfg(target_os = "linux")]
+#[test]
+fn p2_reconstrucao_copia_em_trechos_grandes() {
+    let t = Temp::nova("p2");
+    let iso = t.0.join("jogo.iso");
+    let tamanho = 8 * 1024 * 1024 + 777;
+    let dados: Vec<u8> = (0..tamanho).map(|i| (i % 251) as u8).collect();
+    let raiz = tabela(&[(b"dados.bin", 40, tamanho as u32, ARQ)]);
+    gravar_iso(
+        &iso,
+        (33, S as u32),
+        &[(33, &raiz), (40, &dados)],
+        40 + 4200,
+    );
+    let mut gdf = Gdf::abrir(&iso).unwrap();
+    let saida = t.0.join("reconstruida.iso");
+
+    let antes = gravacoes_desta_thread();
+    crate::god::reconstrucao::reconstruir(&mut gdf, &iso, &saida).unwrap();
+    let gravacoes = gravacoes_desta_thread() - antes;
+    assert!(gravacoes < 100, "{gravacoes} gravações para 8 MiB");
+
+    // os dados foram copiados inteiros, com o último setor completado com zero
+    let r = fs::read(&saida).unwrap();
+    let inicio = r
+        .windows(64)
+        .position(|w| w == &dados[..64])
+        .expect("os dados estão na imagem reconstruída");
+    assert_eq!(&r[inicio..inicio + tamanho], &dados[..]);
+    let fim_setor = (inicio + tamanho).div_ceil(S as usize) * S as usize;
+    assert!(r[inicio + tamanho..fim_setor].iter().all(|&b| b == 0));
+}
