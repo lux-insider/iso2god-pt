@@ -310,3 +310,15 @@ fn e2_panico_vira_evento_erro_em_portugues_e_apaga_a_saida() {
         arquivos(&destino).iter().map(|a| &a.0).collect::<Vec<_>>()
     );
 }
+
+/// P-1: os pacotes de hash compilados para velocidade no perfil de
+/// release (o resto continua otimizado para tamanho).
+#[test]
+fn p1_hashes_otimizados_para_velocidade_no_release() {
+    let cargo = include_str!("../Cargo.toml");
+    assert!(cargo.contains("[profile.release]\nopt-level = \"z\""));
+    for pacote in ["sha1", "digest", "block-buffer", "md-5"] {
+        let secao = format!("[profile.release.package.{pacote}]\nopt-level = 3");
+        assert!(cargo.contains(&secao), "falta {secao}");
+    }
+}

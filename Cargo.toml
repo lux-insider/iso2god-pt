@@ -48,5 +48,19 @@ codegen-units = 1
 panic = "abort"
 strip = true
 
+# O SHA-1 das tabelas de hash é o único trecho pesado de CPU: otimizado para
+# velocidade. Numa CPU sem SHA-NI, o SHA-1 compilado para tamanho deixava a
+# conversão 44% mais lenta (8,7 s contra 4,9 s por GiB com -j 1); o binário
+# cresce 744 bytes. Com SHA-NI nada muda. O MD5 (Media ID do Xbox original)
+# vai junto, pelo mesmo `digest`.
+[profile.release.package.sha1]
+opt-level = 3
+[profile.release.package.digest]
+opt-level = 3
+[profile.release.package.block-buffer]
+opt-level = 3
+[profile.release.package.md-5]
+opt-level = 3
+
 [dev-dependencies]
 lzxc = "0.1"
