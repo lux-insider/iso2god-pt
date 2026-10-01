@@ -122,3 +122,44 @@ fn s1_saida_fechada_nao_interrompe_a_conversao() {
         "o pacote tem que ficar igual ao de uma conversão normal"
     );
 }
+
+/// Converte em segundo plano e devolve o processo depois que a gravação
+/// das partes começou (o evento da fase "convertendo" já saiu).
+fn conversao_em_andamento(iso: &Path, destino: &Path) -> std::process::Child {
+    let mut filho = converter(iso, destino)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()
+        .unwrap();
+    let mut leitor = BufReader::new(filho.stdout.take().unwrap());
+    let mut linha = String::new();
+    while leitor.read_line(&mut linha).unwrap() > 0 {
+        if linha.contains("\"progresso\"") {
+            break;
+        }
+        linha.clear();
+    }
+    // continua lendo em segundo plano para o pipe não encher
+    std::thread::spawn(move || std::io::copy(&mut leitor, &mut std::io::sink()));
+    filho
+}
+
+/// S-2: fechar o terminal (SIGHUP) no meio da conversão. Antes, o processo
+/// morria na hora e deixava a parte pela metade; agora cancela como o
+/// SIGTERM: apaga a saída e sai com 130.
+#[cfg(unix)]
+#[test]
+fn s2_sighup_cancela_e_apaga_a_saida() {
+    let t = Temp::nova("s2");
+    let iso = iso_grande(&t.0, 2048);
+    let destino = t.0.join("destino");
+    let mut filho = conversao_em_andamento(&iso, &destino);
+    unsafe { libc::kill(filho.id() as libc::pid_t, libc::SIGHUP) };
+    let status = filho.wait().unwrap();
+    assert_eq!(status.code(), Some(130), "{status:?}");
+    assert!(
+        arquivos(&destino).is_empty(),
+        "sobrou saída: {:?}",
+        arquivos(&destino).iter().map(|a| &a.0).collect::<Vec<_>>()
+    );
+}
