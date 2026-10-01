@@ -158,3 +158,19 @@ fn b3_xdbf_com_contagem_absurda_responde_rapido() {
         inicio.elapsed()
     );
 }
+
+/// B-4: entrada `default.xex` declarando 520 MiB numa imagem de 600 MiB.
+/// Antes, o arquivo era lido inteiro (até 4 GiB numa imagem grande, o que
+/// aborta o processo sob limite de memória).
+#[test]
+fn b4_executavel_absurdo_e_recusado_antes_de_alocar() {
+    let t = Temp::nova("b4");
+    let iso = t.0.join("grande.iso");
+    let raiz = tabela(&[(b"default.xex", 100, 520 * 1024 * 1024, ARQ)]);
+    gravar_iso(&iso, (33, S as u32), &[(33, &raiz)], 600 * 512);
+    let mut gdf = Gdf::abrir(&iso).unwrap();
+    match gdf.ler_arquivo("default.xex") {
+        Ok(b) => panic!("leu {} bytes: 520 MiB não é um executável de Xbox", b.len()),
+        Err(e) => assert!(e.to_string().contains("corrompida"), "{e}"),
+    }
+}

@@ -31,6 +31,10 @@ const MAX_ENTRADAS: usize = 1_000_000;
 /// tabelas, que de outro jeito seriam carregadas de novo a cada entrada,
 /// com o número de cópias multiplicando a cada nível.
 const MAX_LIDO_TABELAS: u64 = 1024 * 1024 * 1024;
+/// Teto para `Gdf::ler_arquivo`, que só lê o executável do jogo para a
+/// detecção: um XEX precisa caber nos 512 MB de memória do Xbox 360 (e um
+/// XBE nos 64 MB do Xbox), então nenhum jogo real passa disso.
+const MAX_ARQUIVO_LIDO: u32 = 512 * 1024 * 1024;
 
 /// O quanto da árvore de diretórios já foi carregado, somado em todas as
 /// leituras da mesma imagem.
@@ -227,6 +231,14 @@ impl Gdf {
             tamanho,
             &format!("o arquivo '{caminho}'"),
         )?;
+        // Sem isto, uma entrada corrompida numa imagem grande pedia até
+        // 4 GiB de uma vez, e sob limite de memória o processo abortava.
+        if tamanho > MAX_ARQUIVO_LIDO {
+            return Err(Erro::IsoInvalida(format!(
+                "o arquivo '{caminho}' declara {tamanho} bytes, mais que qualquer executável de \
+                 Xbox: a entrada está corrompida"
+            )));
+        }
 
         let posicao =
             self.descritor.deslocamento_raiz + setor as u64 * self.descritor.tamanho_setor as u64;
