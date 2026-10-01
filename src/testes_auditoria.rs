@@ -78,12 +78,9 @@ pub(crate) fn gravar_iso(caminho: &Path, raiz: (u32, u32), partes: &[(u32, &[u8]
     }
 }
 
-/// B-1: cada tabela tem oito diretórios apontando para a mesma tabela
-/// seguinte, 40 níveis. Antes, cada entrada carregava a sua própria cópia de
-/// tudo abaixo dela: 8⁴⁰ tabelas, memória esgotada e aborto.
-#[test]
-fn b1_tabelas_compartilhadas_esgotam_o_orcamento_em_vez_da_memoria() {
-    let t = Temp::nova("b1");
+/// Cada tabela tem oito diretórios apontando para a mesma tabela seguinte,
+/// 40 níveis.
+fn iso_tabelas_compartilhadas(pasta: &Path) -> PathBuf {
     let niveis = 40u32;
     let mut tabelas = Vec::new();
     for i in 0..niveis {
@@ -97,8 +94,18 @@ fn b1_tabelas_compartilhadas_esgotam_o_orcamento_em_vez_da_memoria() {
     }
     tabelas.push((100 + niveis, tabela(&[(b"fim.bin", 0, 0, ARQ)])));
     let partes: Vec<(u32, &[u8])> = tabelas.iter().map(|(s, b)| (*s, b.as_slice())).collect();
-    let iso = t.0.join("dag.iso");
+    let iso = pasta.join("dag.iso");
     gravar_iso(&iso, (100, S as u32), &partes, 200);
+    iso
+}
+
+/// B-1: cada tabela tem oito diretórios apontando para a mesma tabela
+/// seguinte, 40 níveis. Antes, cada entrada carregava a sua própria cópia de
+/// tudo abaixo dela: 8⁴⁰ tabelas, memória esgotada e aborto.
+#[test]
+fn b1_tabelas_compartilhadas_esgotam_o_orcamento_em_vez_da_memoria() {
+    let t = Temp::nova("b1");
+    let iso = iso_tabelas_compartilhadas(&t.0);
 
     let inicio = Instant::now();
     let mut gdf = Gdf::abrir(&iso).unwrap();
@@ -173,4 +180,20 @@ fn b4_executavel_absurdo_e_recusado_antes_de_alocar() {
         Ok(b) => panic!("leu {} bytes: 520 MiB não é um executável de Xbox", b.len()),
         Err(e) => assert!(e.to_string().contains("corrompida"), "{e}"),
     }
+}
+
+/// B-5: com o cancelamento pedido, a leitura da árvore para na próxima
+/// tabela. Antes, só o orçamento do B-1 a parava, segundos depois.
+#[test]
+fn b5_cancelamento_interrompe_a_leitura_da_arvore() {
+    let t = Temp::nova("b5");
+    let iso = iso_tabelas_compartilhadas(&t.0);
+    let mut gdf = Gdf::abrir(&iso).unwrap();
+    crate::sistema::marcar_cancelamento();
+    let resultado = gdf.analisar_diretorios();
+    crate::sistema::limpar_cancelamento();
+    assert!(
+        matches!(resultado, Err(crate::erro::Erro::Cancelado)),
+        "{resultado:?}"
+    );
 }

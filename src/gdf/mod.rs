@@ -359,6 +359,11 @@ fn processar_diretorio(
     if profundidade > PROFUNDIDADE_MAXIMA {
         return Err(diretorio::erro_profundidade_excedida());
     }
+    // Uma imagem corrompida pode levar segundos aqui (até o orçamento
+    // acabar): o Ctrl+C e o SIGTERM precisam ser ouvidos.
+    if crate::sistema::cancelado() {
+        return Err(Erro::Cancelado);
+    }
 
     for indice in 0..tabela.entradas.len() {
         let (setor, tamanho, eh_diretorio) = {
