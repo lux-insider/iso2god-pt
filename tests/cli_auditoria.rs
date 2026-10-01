@@ -382,3 +382,11 @@ fn t1_texto_da_imagem_nao_vai_cru_para_o_terminal() {
     let v: serde_json::Value = serde_json::from_slice(&json.stdout).unwrap();
     assert_eq!(v["titulo"], titulo);
 }
+
+/// L-1 e L-2: dependências trocadas por poucas linhas de código.
+#[test]
+fn l_dependencias_removidas() {
+    let cargo = include_str!("../Cargo.toml");
+    let dependencias = &cargo[cargo.find("[dependencies]").unwrap()..];
+    assert!(!dependencias.contains("terminal_size"), "L-1");
+}
