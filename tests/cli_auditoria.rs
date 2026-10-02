@@ -304,7 +304,14 @@ fn e1_erro_de_es_diz_arquivo_e_operacao() {
         "não foi possível abrir {}: não existe",
         inexistente.display()
     );
-    assert!(texto.contains(&esperado), "{texto}");
+    // a saída é o --progresso-json: a mensagem vem dentro do JSON, onde as
+    // barras invertidas de um caminho do Windows chegam escapadas
+    let mensagens: Vec<String> = texto
+        .lines()
+        .filter_map(|l| serde_json::from_str::<serde_json::Value>(l).ok())
+        .filter_map(|v| v["mensagem"].as_str().map(str::to_owned))
+        .collect();
+    assert!(mensagens.iter().any(|m| m.contains(&esperado)), "{texto}");
 
     // destino que é um arquivo: a pasta do pacote não pode ser criada
     let iso = iso_grande(&t.0, 1);
@@ -365,7 +372,8 @@ fn e2_panico_vira_evento_erro_em_portugues_e_apaga_a_saida() {
 /// release (o resto continua otimizado para tamanho).
 #[test]
 fn p1_hashes_otimizados_para_velocidade_no_release() {
-    let cargo = include_str!("../Cargo.toml");
+    // no Windows o git pode entregar o arquivo com \r\n
+    let cargo = include_str!("../Cargo.toml").replace("\r\n", "\n");
     assert!(cargo.contains("[profile.release]\nopt-level = \"z\""));
     for pacote in ["sha1", "digest", "block-buffer", "md-5"] {
         let secao = format!("[profile.release.package.{pacote}]\nopt-level = 3");

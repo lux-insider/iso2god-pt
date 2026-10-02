@@ -1437,7 +1437,8 @@ mod testes {
 
     #[test]
     fn normalizar_caminho_expande_til() {
-        let home = std::env::var("HOME").expect("HOME definido no ambiente de teste");
+        // a pasta pessoal: HOME ou, no Windows, USERPROFILE
+        let home = crate::terminal::pasta_pessoal().expect("pasta pessoal no ambiente de teste");
         assert_eq!(
             normalizar_caminho("~/Jogos/x.iso"),
             PathBuf::from(&home).join("Jogos/x.iso")
