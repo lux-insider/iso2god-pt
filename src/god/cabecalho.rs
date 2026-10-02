@@ -325,7 +325,9 @@ fn hex_para_bytes(hex: &str) -> Resultado<Vec<u8>> {
         )));
     }
     hex.as_bytes()
-        .chunks_exact(2)
+        .as_chunks::<2>()
+        .0
+        .iter()
         .map(|par| {
             let digito = |b: u8| (b as char).to_digit(16).unwrap_or(0) as u8;
             Ok(digito(par[0]) << 4 | digito(par[1]))
