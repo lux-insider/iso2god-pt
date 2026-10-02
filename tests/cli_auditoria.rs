@@ -9,6 +9,9 @@ use std::process::{Command, Stdio};
 const S: u64 = 2048;
 const EXE: &str = env!("CARGO_BIN_EXE_iso2god");
 
+#[cfg(windows)]
+mod console_windows;
+
 struct Temp(PathBuf);
 
 impl Temp {
@@ -158,6 +161,51 @@ fn s2_sighup_cancela_e_apaga_a_saida() {
     unsafe { libc::kill(filho.id() as libc::pid_t, libc::SIGHUP) };
     let status = filho.wait().unwrap();
     assert_eq!(status.code(), Some(130), "{status:?}");
+    assert!(
+        arquivos(&destino).is_empty(),
+        "sobrou saída: {:?}",
+        arquivos(&destino).iter().map(|a| &a.0).collect::<Vec<_>>()
+    );
+}
+
+/// S-2 no Windows: fechar a janela no meio da conversão cancela como o
+/// Ctrl+C: apaga a saída e sai com 130. O programa roda num console
+/// próprio, fechado como pelo X da janela.
+#[cfg(windows)]
+#[test]
+fn s2_janela_fechada_cancela_e_apaga_a_saida() {
+    let t = Temp::nova("s2-janela");
+    let iso = iso_grande(&t.0, 2048);
+    let destino = t.0.join("destino");
+    let (janela, saida) = console_windows::Janela::abrir(
+        Path::new(EXE),
+        &[
+            "converter".as_ref(),
+            iso.as_os_str(),
+            destino.as_os_str(),
+            "--plataforma".as_ref(),
+            "xbox360".as_ref(),
+            "--title-id".as_ref(),
+            "4D5308BF".as_ref(),
+            "--media-id".as_ref(),
+            "AABBCCDD".as_ref(),
+            "--progresso-json".as_ref(),
+        ],
+    );
+    // a gravação das partes começou (o primeiro evento de progresso)
+    let mut leitor = BufReader::new(saida);
+    let mut linha = String::new();
+    while leitor.read_line(&mut linha).unwrap() > 0 {
+        if linha.contains("\"progresso\"") {
+            break;
+        }
+        linha.clear();
+    }
+    janela.fechar();
+    // o resto da saída é lido até o programa sair, para o pipe não encher
+    std::io::copy(&mut leitor, &mut std::io::sink()).unwrap();
+    let codigo = janela.esperar(std::time::Duration::from_secs(30));
+    assert_eq!(codigo, Some(130));
     assert!(
         arquivos(&destino).is_empty(),
         "sobrou saída: {:?}",
