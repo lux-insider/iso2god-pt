@@ -18,6 +18,12 @@ concurrency:
   group: testes-${{ github.ref }}
   cancel-in-progress: true
 
+# A versão do Rust fica fixa: cada versão nova pode trazer avisos novos do
+# clippy e deixar o CI vermelho sem o código ter mudado. Para atualizar,
+# troque aqui e corrija o que o clippy novo apontar.
+env:
+  RUST: "1.98.0"
+
 jobs:
   testes:
     name: ${{ matrix.nome }}
@@ -33,13 +39,15 @@ jobs:
             os: windows-latest
     steps:
       - uses: actions/checkout@v5
-      - name: Componentes do Rust
-        run: rustup component add clippy rustfmt
+      - name: Rust ${{ env.RUST }}
+        run: |
+          rustup toolchain install ${{ env.RUST }} --profile minimal --component clippy,rustfmt
+          rustup default ${{ env.RUST }}
       - name: Formatação
         run: cargo fmt --check
       - name: Clippy
         run: cargo clippy --all-targets -- -D warnings
       - name: Testes (debug)
-        run: cargo test
+        run: cargo test --no-fail-fast
       - name: Testes (release)
-        run: cargo test --release
+        run: cargo test --release --no-fail-fast
