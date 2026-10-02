@@ -239,7 +239,7 @@ fn cifrar_cbc(chave: &[u8; 16], dados: &[u8]) -> Vec<u8> {
     let aes = Aes128::new(GenericArray::from_slice(chave));
     let mut anterior = [0u8; 16];
     let mut saida = Vec::new();
-    for bloco in dados.chunks_exact(16) {
+    for bloco in dados.as_chunks::<16>().0 {
         let mut b = GenericArray::clone_from_slice(bloco);
         for (x, p) in b.iter_mut().zip(anterior) {
             *x ^= p;
