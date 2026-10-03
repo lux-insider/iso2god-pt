@@ -98,14 +98,7 @@ iso2god
 
 Sem nenhum argumento, abre um menu:
 
-```
-  ── Converter ──────────────────────────────────────────── GOD ──
-   [1]  🎮  ISO para GOD             assistente guiado
-   [2]  🚀  Lote: uma pasta inteira  todas as ISOs de uma vez
-
-  ── Inspecionar ─────────────────────────────────────────────────
-   [3]  🔍  Analisar ISO             sem converter
-```
+![Menu do iso2god 0.1.5 no terminal](docs/menu.png)
 
 - **Navegador de pastas**: escolha a imagem navegando, sem digitar caminho.
   A listagem mostra tamanho e o layout detectado (Xsf/XGD1/XGD2/XGD3, ou `?`
