@@ -492,7 +492,11 @@ fn x1_xex_quebrado_explica_o_motivo() {
         .output()
         .unwrap();
     assert_eq!(saida.status.code(), Some(1));
-    assert!(saida.stderr.is_empty(), "{}", String::from_utf8_lossy(&saida.stderr));
+    assert!(
+        saida.stderr.is_empty(),
+        "{}",
+        String::from_utf8_lossy(&saida.stderr)
+    );
     let eventos: Vec<serde_json::Value> = String::from_utf8(saida.stdout)
         .unwrap()
         .lines()
@@ -508,21 +512,41 @@ fn x1_xex_quebrado_explica_o_motivo() {
     assert_eq!(erro["evento"], "erro");
     let mensagem = erro["mensagem"].as_str().unwrap();
     assert!(!mensagem.contains("imagem ISO inválida"), "{mensagem}");
-    assert!(mensagem.contains("default.xex: ") && mensagem.contains("--title-id"), "{mensagem}");
+    assert!(
+        mensagem.contains("default.xex: ") && mensagem.contains("--title-id"),
+        "{mensagem}"
+    );
 
-    let json = Command::new(EXE).arg("info").arg(&iso).arg("--json").output().unwrap();
+    let json = Command::new(EXE)
+        .arg("info")
+        .arg(&iso)
+        .arg("--json")
+        .output()
+        .unwrap();
     assert_eq!(json.status.code(), Some(0));
     let v: serde_json::Value = serde_json::from_slice(&json.stdout).unwrap();
     assert!(v["title_id"].is_null());
-    assert!(v["motivo_sem_metadados"].as_str().unwrap().contains("default.xex"), "{v}");
+    assert!(
+        v["motivo_sem_metadados"]
+            .as_str()
+            .unwrap()
+            .contains("default.xex"),
+        "{v}"
+    );
 
     let texto = Command::new(EXE).arg("info").arg(&iso).output().unwrap();
-    let texto = String::from_utf8(texto.stdout).unwrap() + &String::from_utf8(texto.stderr).unwrap();
+    let texto =
+        String::from_utf8(texto.stdout).unwrap() + &String::from_utf8(texto.stderr).unwrap();
     assert!(texto.contains("Title ID e Media ID não lidos"), "{texto}");
 
     // uma imagem boa continua sem o campo novo no JSON
     let boa = iso_com_xbe(&t.0, "Jogo");
-    let json = Command::new(EXE).arg("info").arg(&boa).arg("--json").output().unwrap();
+    let json = Command::new(EXE)
+        .arg("info")
+        .arg(&boa)
+        .arg("--json")
+        .output()
+        .unwrap();
     let v: serde_json::Value = serde_json::from_slice(&json.stdout).unwrap();
     assert!(v.get("motivo_sem_metadados").is_none(), "{v}");
 }
@@ -585,17 +609,40 @@ fn c2_entrada_aberta_nao_cancela() {
 /// U-1: ajuda e erros de uso em português; erro de uso sai com 1.
 #[test]
 fn u1_ajuda_e_erros_de_uso_em_portugues() {
-    let ajuda = Command::new(EXE).args(["converter", "--help"]).output().unwrap();
+    let ajuda = Command::new(EXE)
+        .args(["converter", "--help"])
+        .output()
+        .unwrap();
     assert_eq!(ajuda.status.code(), Some(0));
     let texto = String::from_utf8(ajuda.stdout).unwrap();
-    for trecho in ["Uso: iso2god converter [OPÇÕES] <ORIGEM> <DESTINO>", "Argumentos:", "Opções:", "Mostra a ajuda", "--cancelar-pela-entrada"] {
+    // no Windows o nome vem com .exe ("Uso: iso2god.exe converter ...")
+    for trecho in [
+        "Uso: iso2god",
+        "converter [OPÇÕES] <ORIGEM> <DESTINO>",
+        "Argumentos:",
+        "Opções:",
+        "Mostra a ajuda",
+        "--cancelar-pela-entrada",
+    ] {
         assert!(texto.contains(trecho), "falta {trecho:?}: {texto}");
     }
-    assert!(!texto.contains("Usage") && !texto.contains("Print help"), "{texto}");
+    assert!(
+        !texto.contains("Usage") && !texto.contains("Print help"),
+        "{texto}"
+    );
 
-    let erro = Command::new(EXE).args(["converter", "--xyz"]).output().unwrap();
+    let erro = Command::new(EXE)
+        .args(["converter", "--xyz"])
+        .output()
+        .unwrap();
     assert_eq!(erro.status.code(), Some(1));
     let texto = String::from_utf8(erro.stderr).unwrap();
-    assert!(texto.starts_with("erro: argumento inesperado '--xyz'"), "{texto}");
-    assert!(texto.contains("Para mais informações, use '--help'."), "{texto}");
+    assert!(
+        texto.starts_with("erro: argumento inesperado '--xyz'"),
+        "{texto}"
+    );
+    assert!(
+        texto.contains("Para mais informações, use '--help'."),
+        "{texto}"
+    );
 }

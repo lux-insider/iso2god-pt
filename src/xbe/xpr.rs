@@ -346,9 +346,9 @@ pub fn rgba_para_png(largura: u32, altura: u32, rgba: &[u8]) -> Resultado<Vec<u8
         let mut encoder = png::Encoder::new(&mut saida, largura, altura);
         encoder.set_color(png::ColorType::Rgba);
         encoder.set_depth(png::BitDepth::Eight);
-        let mut escritor = encoder
-            .write_header()
-            .map_err(|e| Erro::ExecutavelInvalido(format!("falha ao escrever cabeçalho PNG: {e}")))?;
+        let mut escritor = encoder.write_header().map_err(|e| {
+            Erro::ExecutavelInvalido(format!("falha ao escrever cabeçalho PNG: {e}"))
+        })?;
         escritor
             .write_image_data(rgba)
             .map_err(|e| Erro::ExecutavelInvalido(format!("falha ao codificar dados PNG: {e}")))?;

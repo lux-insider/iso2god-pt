@@ -20,8 +20,14 @@ const TROCAS: &[(&str, &str)] = &[
     ("[OPTIONS]", "[OPÇÕES]"),
     ("<COMMAND>", "<COMANDO>"),
     ("[COMMAND]", "[COMANDO]"),
-    ("Print help (see more with '--help')", "Mostra a ajuda (mais detalhes com '--help')"),
-    ("Print help (see a summary with '-h')", "Mostra a ajuda (resumo com '-h')"),
+    (
+        "Print help (see more with '--help')",
+        "Mostra a ajuda (mais detalhes com '--help')",
+    ),
+    (
+        "Print help (see a summary with '-h')",
+        "Mostra a ajuda (resumo com '-h')",
+    ),
     (
         "Print this message or the help of the given subcommand(s)",
         "Mostra esta ajuda ou a de um comando",
@@ -35,9 +41,18 @@ const TROCAS: &[(&str, &str)] = &[
     // erros de uso
     ("error:", "erro:"),
     ("tip:", "dica:"),
-    ("For more information, try '", "Para mais informações, use '"),
-    ("the following required arguments were not provided:", "faltam argumentos obrigatórios:"),
-    ("' found; no more were expected", "' (não se esperava mais nenhum)"),
+    (
+        "For more information, try '",
+        "Para mais informações, use '",
+    ),
+    (
+        "the following required arguments were not provided:",
+        "faltam argumentos obrigatórios:",
+    ),
+    (
+        "' found; no more were expected",
+        "' (não se esperava mais nenhum)",
+    ),
     ("unexpected value '", "valor inesperado '"),
     ("unexpected argument '", "argumento inesperado '"),
     ("' found", "'"),
@@ -51,12 +66,30 @@ const TROCAS: &[(&str, &str)] = &[
     ("the argument '", "a opção '"),
     ("the subcommand '", "o comando '"),
     ("unrecognized subcommand '", "comando desconhecido '"),
-    ("' requires a subcommand but one was not provided", "' precisa de um comando"),
-    ("a similar argument exists: '", "existe uma opção parecida: '"),
-    ("some similar arguments exist: ", "existem opções parecidas: "),
-    ("a similar subcommand exists: '", "existe um comando parecido: '"),
-    ("some similar subcommands exist: ", "existem comandos parecidos: "),
-    ("equal sign is needed when assigning values to '", "use o sinal de igual para dar valor a '"),
+    (
+        "' requires a subcommand but one was not provided",
+        "' precisa de um comando",
+    ),
+    (
+        "a similar argument exists: '",
+        "existe uma opção parecida: '",
+    ),
+    (
+        "some similar arguments exist: ",
+        "existem opções parecidas: ",
+    ),
+    (
+        "a similar subcommand exists: '",
+        "existe um comando parecido: '",
+    ),
+    (
+        "some similar subcommands exist: ",
+        "existem comandos parecidos: ",
+    ),
+    (
+        "equal sign is needed when assigning values to '",
+        "use o sinal de igual para dar valor a '",
+    ),
     (
         "invalid UTF-8 was detected in one or more arguments",
         "um dos argumentos não é texto UTF-8 válido",
@@ -83,7 +116,10 @@ pub fn traduzir(texto: &str) -> String {
 /// versão não conhece leria "imagem modificada").
 pub fn sair(erro: clap::Error) -> ! {
     use clap::error::ErrorKind;
-    let pedido = matches!(erro.kind(), ErrorKind::DisplayHelp | ErrorKind::DisplayVersion);
+    let pedido = matches!(
+        erro.kind(),
+        ErrorKind::DisplayHelp | ErrorKind::DisplayVersion
+    );
     let no_erro = erro.use_stderr();
     let terminal = if no_erro {
         std::io::stderr().is_terminal()
