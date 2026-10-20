@@ -615,8 +615,10 @@ fn u1_ajuda_e_erros_de_uso_em_portugues() {
         .unwrap();
     assert_eq!(ajuda.status.code(), Some(0));
     let texto = String::from_utf8(ajuda.stdout).unwrap();
+    // no Windows o nome vem com .exe ("Uso: iso2god.exe converter ...")
     for trecho in [
-        "Uso: iso2god converter [OPÇÕES] <ORIGEM> <DESTINO>",
+        "Uso: iso2god",
+        "converter [OPÇÕES] <ORIGEM> <DESTINO>",
         "Argumentos:",
         "Opções:",
         "Mostra a ajuda",
