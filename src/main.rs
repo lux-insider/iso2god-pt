@@ -23,7 +23,16 @@ fn main() {
     // No Windows: UTF-8 e cores ANSI no console (ver `terminal::preparar_console`).
     terminal::preparar_console();
 
-    let cli = Cli::parse();
+    let cli = Cli::try_parse().unwrap_or_else(|e| iso2god::uso::sair(e));
+    // Só nos subcomandos: o assistente lê respostas pela entrada.
+    let pela_entrada = match &cli.comando {
+        Some(Comando::Converter(a)) => a.cancelar_pela_entrada,
+        Some(Comando::Info(a)) => a.cancelar_pela_entrada,
+        None => false,
+    };
+    if pela_entrada {
+        sistema::cancelar_quando_entrada_fechar();
+    }
     let progresso_json = matches!(&cli.comando, Some(Comando::Converter(a)) if a.progresso_json);
     instalar_gancho_de_panico(progresso_json);
 

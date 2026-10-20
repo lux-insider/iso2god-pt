@@ -73,14 +73,14 @@ impl InfoCertificado {
 /// `XbeCertifcate`, restrito aos campos que usamos.
 pub fn ler_info_certificado(xbe: &[u8]) -> Resultado<InfoCertificado> {
     if xbe.len() < OFF_CERTIFICATE_ADDRESS + 4 {
-        return Err(Erro::IsoInvalida(
+        return Err(Erro::ExecutavelInvalido(
             "arquivo pequeno demais para conter um cabeçalho XBE válido".into(),
         ));
     }
 
     let magic = u32::from_le_bytes(xbe[0..4].try_into().unwrap());
     if magic != ASSINATURA_XBEH {
-        return Err(Erro::IsoInvalida(
+        return Err(Erro::ExecutavelInvalido(
             "arquivo não começa com a assinatura XBE esperada".into(),
         ));
     }
@@ -91,7 +91,7 @@ pub fn ler_info_certificado(xbe: &[u8]) -> Resultado<InfoCertificado> {
     let offset_certificado = certificate_address
         .checked_sub(base_address)
         .ok_or_else(|| {
-            Erro::IsoInvalida(
+            Erro::ExecutavelInvalido(
                 "endereço do certificado do XBE é menor que o endereço base (arquivo corrompido)"
                     .into(),
             )
@@ -101,7 +101,7 @@ pub fn ler_info_certificado(xbe: &[u8]) -> Resultado<InfoCertificado> {
         .checked_add(TAMANHO_CERTIFICADO_LIDO)
         .filter(|&fim| fim <= xbe.len())
         .ok_or_else(|| {
-            Erro::IsoInvalida("o certificado do XBE aponta além do fim do arquivo".into())
+            Erro::ExecutavelInvalido("o certificado do XBE aponta além do fim do arquivo".into())
         })?;
 
     let cert = &xbe[offset_certificado..fim];
@@ -139,13 +139,13 @@ pub fn extrair_thumbnail(xbe: &[u8]) -> Resultado<Vec<u8>> {
 
 fn encontrar_secao_thumbnail(xbe: &[u8]) -> Resultado<&[u8]> {
     if xbe.len() < OFF_SECTION_HEADERS_ADDRESS + 4 {
-        return Err(Erro::IsoInvalida(
+        return Err(Erro::ExecutavelInvalido(
             "arquivo pequeno demais para conter a tabela de seções do XBE".into(),
         ));
     }
     let magic = u32::from_le_bytes(xbe[0..4].try_into().unwrap());
     if magic != ASSINATURA_XBEH {
-        return Err(Erro::IsoInvalida(
+        return Err(Erro::ExecutavelInvalido(
             "arquivo não começa com a assinatura XBE esperada".into(),
         ));
     }
@@ -155,7 +155,7 @@ fn encontrar_secao_thumbnail(xbe: &[u8]) -> Resultado<&[u8]> {
     let secoes_address = ler_u32_le(xbe, OFF_SECTION_HEADERS_ADDRESS);
     let offset_secoes = secoes_address
         .checked_sub(base_address)
-        .ok_or_else(|| Erro::IsoInvalida("endereço da tabela de seções do XBE é inválido".into()))?
+        .ok_or_else(|| Erro::ExecutavelInvalido("endereço da tabela de seções do XBE é inválido".into()))?
         as usize;
 
     for nome_procurado in NOMES_SECAO_THUMBNAIL {
@@ -190,7 +190,7 @@ fn encontrar_secao_thumbnail(xbe: &[u8]) -> Resultado<&[u8]> {
         }
     }
 
-    Err(Erro::IsoInvalida(
+    Err(Erro::ExecutavelInvalido(
         "nenhuma seção de thumbnail (\"$$XSIMAGE\"/\"$$XTIMAGE\") encontrada no XBE".into(),
     ))
 }

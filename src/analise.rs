@@ -33,6 +33,10 @@ pub struct InfoIso {
     pub total_discos: Option<u8>,
     pub thumbnail_png_base64: Option<String>,
     pub ultimo_setor: u32,
+    /// Por que o Title ID e o resto não puderam ser lidos do default.xex ou
+    /// default.xbe. Só aparece no JSON quando houve falha.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub motivo_sem_metadados: Option<String>,
 }
 
 /// Abre e analisa a ISO em `origem`, detectando plataforma (Xbox Original /
@@ -62,13 +66,20 @@ pub fn analisar(origem: &Path) -> Resultado<InfoIso> {
         total_discos: None,
         thumbnail_png_base64: None,
         ultimo_setor: 0,
+        motivo_sem_metadados: None,
     };
 
     if contem_xex {
         info.plataforma_detectada = Some("xbox360");
-        if let Ok(bytes) = gdf.ler_arquivo("default.xex")
-            && let Ok(exec) = xex::ler_info_execucao(&bytes)
-        {
+        let lido = gdf.ler_arquivo("default.xex").and_then(|bytes| {
+            let exec = xex::ler_info_execucao(&bytes)
+                .map_err(|e| crate::erro::Erro::ExecutavelInvalido(format!("default.xex: {e}")))?;
+            Ok((bytes, exec))
+        });
+        if let Err(e) = &lido {
+            info.motivo_sem_metadados = Some(e.to_string());
+        }
+        if let Ok((bytes, exec)) = lido {
             info.title_id = Some(exec.title_id_hex());
             info.media_id = Some(exec.media_id_hex());
             info.disco = Some(exec.disco_numero);
@@ -82,8 +93,16 @@ pub fn analisar(origem: &Path) -> Resultado<InfoIso> {
         }
     } else if contem_xbe {
         info.plataforma_detectada = Some("xbox");
-        if let Ok(bytes) = gdf.ler_arquivo("default.xbe") {
-            if let Ok(cert) = xbe::ler_info_certificado(&bytes) {
+        let lido = gdf.ler_arquivo("default.xbe");
+        if let Err(e) = &lido {
+            info.motivo_sem_metadados = Some(e.to_string());
+        }
+        if let Ok(bytes) = lido {
+            let cert = xbe::ler_info_certificado(&bytes);
+            if let Err(e) = &cert {
+                info.motivo_sem_metadados = Some(format!("default.xbe: {e}"));
+            }
+            if let Ok(cert) = cert {
                 info.title_id = Some(cert.title_id_hex());
                 info.media_id = Some(xbe::media_id_substituto(&bytes));
                 info.titulo = Some(cert.titulo);
@@ -183,6 +202,12 @@ impl InfoIso {
             );
             if let Some(t) = &self.title_id {
                 saida!("{}", tema.campo("Title ID", t, emo::JOGO(), 20));
+            }
+            if let Some(motivo) = &self.motivo_sem_metadados {
+                tema.aviso(&format!(
+                    "Title ID e Media ID não lidos ({motivo}); para converter, informe \
+                     --title-id e --media-id"
+                ));
             }
             if let Some(m) = &self.media_id {
                 saida!("{}", tema.campo("Media ID", m, "", 20));

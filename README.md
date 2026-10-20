@@ -145,14 +145,23 @@ iso2god info origem.iso --json
 
 Uma linha JSON por evento em stdout: fases, progresso (bytes, velocidade e
 ETA), conclusão ou erro. É o protocolo usado pelo
-[xiso-manager](https://github.com/lux-insider/xiso-manager).
+[xiso-manager](https://github.com/lux-insider/xiso-manager). Avisos que
+não param a conversão (ex.: `default.xex` ilegível) vêm como `fase` com
+`"fase": "aviso"`. No `info --json`, quando o Title ID não pôde ser lido,
+o campo `motivo_sem_metadados` diz por quê.
+
+Quem chama sem console (um programa com janela no Windows não tem como
+mandar Ctrl+C) passa `--cancelar-pela-entrada`, liga um pipe na entrada
+padrão e o fecha para cancelar: a conversão para e apaga o pacote
+incompleto, como no Ctrl+C. Se o programa que chamou morrer, o sistema
+fecha o pipe e o efeito é o mesmo.
 
 | Código de saída | Significado |
 |---|---|
 | 0 | sucesso |
 | 1 | erro (ou, no lote, alguma imagem não converteu) |
-| 2 | opção ou argumento inválido na linha de comando |
-| 130 | cancelado (Ctrl+C, SIGTERM, terminal ou janela fechados) |
+| 1 | também opção ou argumento inválido na linha de comando (até a 0.1.5, 2) |
+| 130 | cancelado (Ctrl+C, SIGTERM, terminal ou janela fechados, entrada fechada com `--cancelar-pela-entrada`) |
 
 ---
 
@@ -210,6 +219,7 @@ src/
 ├── progresso.rs          eventos de progresso e protocolo JSON
 ├── terminal.rs           cores, barra de progresso e símbolos
 ├── limpeza.rs            cancelamento e remoção da saída incompleta
+├── uso.rs                ajuda e erros de uso em português
 └── sistema.rs, erro.rs   espaço em disco, sinais e mensagens de erro
 tests/                    testes de integração e saídas de referência (golden)
 ferramentas/fuzz/         fuzzers de imagens corrompidas e XBEs forjados
@@ -219,7 +229,7 @@ ferramentas/fuzz/         fuzzers de imagens corrompidas e XBEs forjados
 
 ## Testes
 
-- **128 testes** (`cargo test --release`), incluindo saídas de referência
+- **132 testes** (`cargo test --release`), incluindo saídas de referência
   (golden) que garantem que cada versão grava exatamente os mesmos bytes para
   entradas válidas.
 - **Integração contínua** no GitHub Actions, no Linux e no Windows, em debug e

@@ -122,17 +122,22 @@ fn resolver_metadados(opcoes: &OpcoesConversao, gdf: &mut Gdf) -> Resultado<Meta
     };
 
     let detectado = match tipo_conteudo {
-        TipoConteudo::GamesOnDemand => detectar_do_xex(gdf),
-        TipoConteudo::XboxOriginal => detectar_do_xbe(gdf),
+        TipoConteudo::GamesOnDemand => detectar_do_xex(gdf, opcoes.progresso_json),
+        TipoConteudo::XboxOriginal => detectar_do_xbe(gdf, opcoes.progresso_json),
     };
 
+    let motivo = detectado
+        .motivo
+        .as_deref()
+        .map(|m| format!(" ({m})"))
+        .unwrap_or_default();
     let title_id = opcoes
         .title_id
         .clone()
         .or(detectado.title_id_hex)
         .ok_or_else(|| {
-            Erro::IsoInvalida(
-                "não foi possível determinar o Title ID automaticamente; informe --title-id".into(),
+            Erro::DadoDoJogo(
+                format!("não foi possível determinar o Title ID automaticamente{motivo}; informe --title-id"),
             )
         })?;
 
@@ -141,8 +146,8 @@ fn resolver_metadados(opcoes: &OpcoesConversao, gdf: &mut Gdf) -> Resultado<Meta
         .clone()
         .or(detectado.media_id_hex)
         .ok_or_else(|| {
-            Erro::IsoInvalida(
-                "não foi possível determinar o Media ID automaticamente; informe --media-id".into(),
+            Erro::DadoDoJogo(
+                format!("não foi possível determinar o Media ID automaticamente{motivo}; informe --media-id"),
             )
         })?;
 
@@ -203,7 +208,7 @@ fn ler_icone(caminho: &Path) -> Resultado<Vec<u8>> {
                 .read_to_end(&mut dados)
         })
         .map_err(|e| {
-            Erro::IsoInvalida(format!(
+            Erro::DadoDoJogo(format!(
                 "não foi possível ler o ícone '{}': {e}",
                 caminho.display()
             ))
@@ -214,7 +219,7 @@ fn ler_icone(caminho: &Path) -> Resultado<Vec<u8>> {
             .filter(|m| m.is_file())
             .map(|m| fmt_bytes(m.len()))
             .unwrap_or_else(|| format!("mais de {}", fmt_bytes(cabecalho::MAX_ICONE as u64)));
-        return Err(Erro::IsoInvalida(format!(
+        return Err(Erro::DadoDoJogo(format!(
             "o ícone '{}' tem {tamanho} e o campo de thumbnail do cabeçalho comporta no \
              máximo {}; use uma imagem menor",
             caminho.display(),
@@ -239,6 +244,25 @@ struct MetadadosDetectados {
     plataforma_byte: Option<u8>,
     tipo_executavel_byte: Option<u8>,
     icone: Option<Vec<u8>>,
+    /// Por que nada foi detectado (executável ilegível ou inválido).
+    motivo: Option<String>,
+}
+
+impl MetadadosDetectados {
+    fn sem(motivo: String) -> Self {
+        Self {
+            motivo: Some(motivo),
+            ..Self::default()
+        }
+    }
+}
+
+/// Aviso que não para a conversão: no `--progresso-json` vira um evento
+/// `fase` "aviso" (como os outros avisos), senão uma linha em stderr.
+macro_rules! aviso {
+    ($json:expr, $($arg:tt)*) => {
+        $crate::progresso::avisar(&format!($($arg)*), $json)
+    };
 }
 
 /// Lê e interpreta o `default.xex`, tolerando qualquer falha (arquivo
@@ -246,19 +270,19 @@ struct MetadadosDetectados {
 /// `None` em vez de abortar a conversão. Equivalente a `IsoDetails.readXex`:
 /// Title ID, Media ID e disco vêm do cabeçalho do XEX; o nome de exibição e o
 /// ícone, do recurso XDBF dentro da imagem (ver `xex::ler_titulo`).
-fn detectar_do_xex(gdf: &mut Gdf) -> MetadadosDetectados {
+fn detectar_do_xex(gdf: &mut Gdf, json: bool) -> MetadadosDetectados {
     let bytes = match gdf.ler_arquivo("default.xex") {
         Ok(bytes) => bytes,
         Err(e) => {
-            saida_erro!("aviso: não foi possível ler o default.xex da imagem: {e}");
-            return MetadadosDetectados::default();
+            aviso!(json, "não foi possível ler o default.xex da imagem: {e}");
+            return MetadadosDetectados::sem(format!("{e}"));
         }
     };
     let info = match xex::ler_info_execucao(&bytes) {
         Ok(info) => info,
         Err(e) => {
-            saida_erro!("aviso: não foi possível interpretar o default.xex: {e}");
-            return MetadadosDetectados::default();
+            aviso!(json, "não foi possível interpretar o default.xex: {e}");
+            return MetadadosDetectados::sem(format!("default.xex: {e}"));
         }
     };
 
@@ -268,8 +292,9 @@ fn detectar_do_xex(gdf: &mut Gdf) -> MetadadosDetectados {
         Ok(t) => {
             let icone = match t.icone_png {
                 Some(png) if png.len() > cabecalho::MAX_ICONE => {
-                    saida_erro!(
-                        "aviso: o ícone do jogo tem {} e não cabe no cabeçalho (máximo {}); \
+                    aviso!(
+                        json,
+                        "o ícone do jogo tem {} e não cabe no cabeçalho (máximo {}); \
                          seguindo sem ícone",
                         fmt_bytes(png.len() as u64),
                         fmt_bytes(cabecalho::MAX_ICONE as u64)
@@ -281,7 +306,7 @@ fn detectar_do_xex(gdf: &mut Gdf) -> MetadadosDetectados {
             (t.titulo, icone)
         }
         Err(e) => {
-            saida_erro!("aviso: não foi possível ler o nome e o ícone do jogo: {e}");
+            aviso!(json, "não foi possível ler o nome e o ícone do jogo: {e}");
             (None, None)
         }
     };
@@ -295,6 +320,7 @@ fn detectar_do_xex(gdf: &mut Gdf) -> MetadadosDetectados {
         plataforma_byte: Some(info.plataforma),
         tipo_executavel_byte: Some(info.tipo_executavel),
         icone,
+        motivo: None,
     }
 }
 
@@ -305,19 +331,19 @@ fn detectar_do_xex(gdf: &mut Gdf) -> MetadadosDetectados {
 /// do MD5 do arquivo inteiro (mesma solução do original). Equivalente a
 /// `IsoDetails.readXbe` + o construtor de 4 argumentos de
 /// `IsoDetailsResults`.
-fn detectar_do_xbe(gdf: &mut Gdf) -> MetadadosDetectados {
+fn detectar_do_xbe(gdf: &mut Gdf, json: bool) -> MetadadosDetectados {
     let bytes = match gdf.ler_arquivo("default.xbe") {
         Ok(bytes) => bytes,
         Err(e) => {
-            saida_erro!("aviso: não foi possível ler o default.xbe da imagem: {e}");
-            return MetadadosDetectados::default();
+            aviso!(json, "não foi possível ler o default.xbe da imagem: {e}");
+            return MetadadosDetectados::sem(format!("{e}"));
         }
     };
     let info = match xbe::ler_info_certificado(&bytes) {
         Ok(info) => info,
         Err(e) => {
-            saida_erro!("aviso: não foi possível interpretar o default.xbe: {e}");
-            return MetadadosDetectados::default();
+            aviso!(json, "não foi possível interpretar o default.xbe: {e}");
+            return MetadadosDetectados::sem(format!("default.xbe: {e}"));
         }
     };
 
@@ -334,8 +360,9 @@ fn detectar_do_xbe(gdf: &mut Gdf) -> MetadadosDetectados {
         // poderia render um PNG maior que o campo do cabeçalho: nesse caso
         // seguimos sem ícone em vez de derrubar a conversão inteira.
         Ok(png) if png.len() > cabecalho::MAX_ICONE => {
-            saida_erro!(
-                "aviso: o thumbnail extraído do default.xbe tem {} e não cabe no cabeçalho \
+            aviso!(
+                json,
+                "o thumbnail extraído do default.xbe tem {} e não cabe no cabeçalho \
                  (máximo {}); seguindo sem ícone",
                 fmt_bytes(png.len() as u64),
                 fmt_bytes(cabecalho::MAX_ICONE as u64)
@@ -344,7 +371,7 @@ fn detectar_do_xbe(gdf: &mut Gdf) -> MetadadosDetectados {
         }
         Ok(png) => Some(png),
         Err(e) => {
-            saida_erro!("aviso: não foi possível extrair o thumbnail do default.xbe: {e}");
+            aviso!(json, "não foi possível extrair o thumbnail do default.xbe: {e}");
             None
         }
     };
@@ -358,6 +385,7 @@ fn detectar_do_xbe(gdf: &mut Gdf) -> MetadadosDetectados {
         plataforma_byte: Some(0),
         tipo_executavel_byte: Some(0),
         icone,
+        motivo: None,
     }
 }
 

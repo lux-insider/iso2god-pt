@@ -32,13 +32,13 @@ pub struct Textura {
 /// Equivalente a `XPR` + `XPR.ConvertToDDS` + `DDS.GetImage`.
 pub fn decodificar(dados: &[u8]) -> Resultado<Textura> {
     if dados.len() < 28 {
-        return Err(Erro::IsoInvalida(
+        return Err(Erro::ExecutavelInvalido(
             "dados XPR pequenos demais para ter um cabeçalho".into(),
         ));
     }
     let magic = u32::from_le_bytes(dados[0..4].try_into().unwrap());
     if magic != ASSINATURA_XPR0 {
-        return Err(Erro::IsoInvalida(
+        return Err(Erro::ExecutavelInvalido(
             "dados não começam com a assinatura XPR0 esperada".into(),
         ));
     }
@@ -51,7 +51,7 @@ pub fn decodificar(dados: &[u8]) -> Resultado<Textura> {
     // thumbnail são sempre quadradas, e replicamos isso fielmente.
     let expoente_tamanho = dados[27];
     let tamanho = 1u32.checked_shl(expoente_tamanho as u32).ok_or_else(|| {
-        Erro::IsoInvalida(format!(
+        Erro::ExecutavelInvalido(format!(
             "expoente de tamanho de textura XPR inválido: {expoente_tamanho}"
         ))
     })?;
@@ -61,7 +61,7 @@ pub fn decodificar(dados: &[u8]) -> Resultado<Textura> {
     // descartado de qualquer jeito, depois de alocar e comprimir até 4 GiB
     // de pixels.
     if tamanho > LADO_MAXIMO {
-        return Err(Erro::IsoInvalida(format!(
+        return Err(Erro::ExecutavelInvalido(format!(
             "textura XPR declara um tamanho impossível para uma miniatura \
              ({tamanho}x{tamanho}; o PNG não caberia no cabeçalho)"
         )));
@@ -70,7 +70,7 @@ pub fn decodificar(dados: &[u8]) -> Resultado<Textura> {
     let inicio_imagem = header_size as usize;
     let fim_imagem = file_size as usize;
     if inicio_imagem > fim_imagem || fim_imagem > dados.len() {
-        return Err(Erro::IsoInvalida(
+        return Err(Erro::ExecutavelInvalido(
             "cabeçalho XPR declara um tamanho de imagem além do fim dos dados".into(),
         ));
     }
@@ -81,7 +81,7 @@ pub fn decodificar(dados: &[u8]) -> Resultado<Textura> {
         FORMATO_ARGB => decodificar_argb_swizzled(tamanho, tamanho, imagem, false)?,
         FORMATO_XRGB => decodificar_argb_swizzled(tamanho, tamanho, imagem, true)?,
         outro => {
-            return Err(Erro::IsoInvalida(format!(
+            return Err(Erro::ExecutavelInvalido(format!(
                 "formato de textura XPR não suportado: {outro} (só DXT1, ARGB e XRGB)"
             )));
         }
@@ -107,7 +107,7 @@ fn bytes_rgba(largura: u32, altura: u32) -> Resultado<usize> {
         .checked_mul(altura as usize)
         .and_then(|pixels| pixels.checked_mul(4))
         .ok_or_else(|| {
-            Erro::IsoInvalida(format!(
+            Erro::ExecutavelInvalido(format!(
                 "textura XPR declara um tamanho impossível ({largura}x{altura})"
             ))
         })
@@ -196,12 +196,12 @@ fn decodificar_dxt1(largura: u32, altura: u32, dados: &[u8]) -> Resultado<Vec<u8
         .checked_mul(blocos_y as usize)
         .and_then(|blocos| blocos.checked_mul(8))
         .ok_or_else(|| {
-            Erro::IsoInvalida(format!(
+            Erro::ExecutavelInvalido(format!(
                 "textura XPR declara um tamanho impossível ({largura}x{altura})"
             ))
         })?;
     if dados.len() < bytes_necessarios {
-        return Err(Erro::IsoInvalida(
+        return Err(Erro::ExecutavelInvalido(
             "dados DXT1 insuficientes para o tamanho de textura declarado".into(),
         ));
     }
@@ -246,7 +246,7 @@ fn decodificar_argb_swizzled(
 ) -> Resultado<Vec<u8>> {
     let tamanho_necessario = bytes_rgba(largura, altura)?;
     if dados.len() < tamanho_necessario {
-        return Err(Erro::IsoInvalida(
+        return Err(Erro::ExecutavelInvalido(
             "dados ARGB insuficientes para o tamanho de textura declarado".into(),
         ));
     }
@@ -348,10 +348,10 @@ pub fn rgba_para_png(largura: u32, altura: u32, rgba: &[u8]) -> Resultado<Vec<u8
         encoder.set_depth(png::BitDepth::Eight);
         let mut escritor = encoder
             .write_header()
-            .map_err(|e| Erro::IsoInvalida(format!("falha ao escrever cabeçalho PNG: {e}")))?;
+            .map_err(|e| Erro::ExecutavelInvalido(format!("falha ao escrever cabeçalho PNG: {e}")))?;
         escritor
             .write_image_data(rgba)
-            .map_err(|e| Erro::IsoInvalida(format!("falha ao codificar dados PNG: {e}")))?;
+            .map_err(|e| Erro::ExecutavelInvalido(format!("falha ao codificar dados PNG: {e}")))?;
     }
     Ok(saida)
 }
