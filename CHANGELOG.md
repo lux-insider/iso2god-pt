@@ -5,11 +5,32 @@ As versões seguem o [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 
 | Versão | Data | Destaque |
 |---|---|---|
+| [0.1.6](#016--2026-10-20) | 20/10/2026 | Cancelamento sem console e ajuda em português |
 | [0.1.5](#015--2026-10-01) | 01/10/2026 | Robustez contra arquivos corrompidos e nomes com acento |
 | [0.1.4](#014--2026-09-30) | 30/09/2026 | Ícone X8R8G8B8 de jogos de Xbox Original |
 | [0.1.3](#013--2026-09-29) | 29/09/2026 | Nome e ícone dos jogos de Xbox 360 |
 | [0.1.2](#012--2026-09-29) | 29/09/2026 | Raiz no corte parcial, cancelamento limpo e desempenho |
 | [0.1.1](#011--2026-09-24) | 24/09/2026 | Primeira versão pública |
+
+---
+
+## 0.1.6 — 2026-10-20
+
+### Adicionado
+- **`--cancelar-pela-entrada`** (`converter` e `info`): fechar a entrada
+  padrão cancela e apaga o pacote incompleto, como o Ctrl+C. Serve para
+  programas sem console, como uma interface gráfica no Windows.
+- `info` e `info --json` (campo `motivo_sem_metadados`) dizem por que o
+  Title ID não pôde ser lido.
+
+### Alterado
+- Ajuda e erros de uso em português.
+- Erro de uso sai com código **1**, como os outros erros (antes, 2).
+- Com `--progresso-json`, os avisos sobre o `default.xex`/`default.xbe`
+  vêm como evento `fase` "aviso", não mais como texto solto em stderr.
+- Um `default.xex`/`default.xbe` ilegível não é mais relatado como
+  "imagem ISO inválida": a mensagem diz que o problema é o executável e o
+  motivo.
 
 ---
 

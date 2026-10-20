@@ -593,3 +593,66 @@ bytes, e o L-1 e o L-2 tiraram cerca de 7 KB e cinco pacotes da compilação
 
 O N-1 e o N-2, que abriam esta lista, foram corrigidos depois com
 autorização (ver os itens): eram os achados mais graves sem correção.
+
+---
+
+# Segunda auditoria — 0.1.5 (20/10/2026)
+
+Escopo: o iso2god-pt 0.1.5 inteiro, com foco no uso por outro programa sem
+console (a futura interface gráfica do xiso-manager), no Windows (testado
+pelo Wine) e em entradas hostis geradas ao acaso. Mesma regra da primeira:
+nada muda os bytes do pacote para entradas válidas (`tests/saida_golden.rs`
+passa; só a linha do código de saída de erro de uso foi atualizada).
+
+## O que foi testado
+
+- **Compilação e testes:** sem avisos; `cargo test` e
+  `cargo clippy --all-targets` limpos.
+- **Executáveis corrompidos ao acaso:** 120 mil `default.xex`, XDBF,
+  `default.xbe` e XPR mutados passados pelos leitores, com limite de tempo e
+  de memória. Nenhum pânico, travamento ou estouro.
+- **Contrato com o xiso-manager:** os eventos do `--progresso-json` e os
+  campos do `info --json` que ele lê continuam os mesmos.
+- **Dependências:** nenhuma das versões do `Cargo.lock` tem aviso aberto no
+  RustSec.
+
+## Achados
+
+| # | Gravidade | Problema | Decisão |
+|---|---|---|---|
+| C-2 | Média | sem console não há como pedir o cancelamento limpo; encerrar à força deixa o pacote pela metade | corrigido: `--cancelar-pela-entrada` |
+| U-1 | Baixa | ajuda e erros de uso do clap em inglês | corrigido (`src/uso.rs`) |
+| U-2 | Baixa | erro de uso saía com 2; o extract-xiso-pt usa 1, e lá 2 é "não confere" | corrigido: 1 |
+| X-1 | Baixa | com `--progresso-json`, o aviso de executável ilegível saía como texto em stderr | corrigido: evento `fase` "aviso" |
+| X-2 | Baixa | o `info` não dizia por que faltava o Title ID | corrigido: aviso no texto e `motivo_sem_metadados` no JSON |
+| X-3 | Baixa | executável ilegível relatado como "imagem ISO inválida" | corrigido: a mensagem fala do executável |
+
+### C-2 (Média) — cancelamento sem console
+
+Igual ao do extract-xiso-pt 0.2.4: com `--cancelar-pela-entrada`, uma
+thread lê a entrada padrão e, quando ela fecha, marca o mesmo cancelamento
+do Ctrl+C. Só vale para `converter` e `info`: o assistente lê as respostas
+pela entrada. Testes: `c2_fechar_a_entrada_cancela_e_limpa` e
+`c2_entrada_aberta_nao_cancela`. Conferido também no Windows (Wine): código
+130 e nenhum arquivo sobrando; com a entrada aberta, conversão completa.
+
+### U-1 e U-2 (Baixa) — ajuda e erros de uso
+
+`src/uso.rs` é o mesmo módulo do extract-xiso-pt. O código 1 evita que um
+programa que chama as duas ferramentas leia um erro de uso como outra
+coisa. Teste: `u1_ajuda_e_erros_de_uso_em_portugues`.
+
+### X-1, X-2 e X-3 (Baixa) — executável ilegível
+
+Os erros de leitura do XEX, XDBF, XBE e XPR passaram a ser
+`Erro::ExecutavelInvalido`, e os de dados que faltam ou vieram errados
+pela linha de comando (Title ID, Media ID, ícone), `Erro::DadoDoJogo`.
+O erro final agora é, por exemplo: "não foi possível determinar o Title ID
+automaticamente (default.xex: arquivo não começa com a assinatura XEX2
+esperada); informe --title-id". O campo novo do `info --json` só aparece
+quando houve falha, então a saída de uma imagem boa é a mesma. Teste:
+`x1_xex_quebrado_explica_o_motivo`.
+
+## Continua para decisão do mantenedor
+
+N-3, N-4, N-5, C-1 e S-5 da primeira auditoria, sem mudança.

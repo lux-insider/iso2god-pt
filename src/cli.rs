@@ -104,6 +104,14 @@ pub struct ArgsConverter {
     /// do default.xex (Xbox 360, o ícone do título em PNG).
     #[arg(long)]
     pub icone: Option<PathBuf>,
+
+    /// Cancela, apagando o que criou, quando a entrada padrão fecha.
+    ///
+    /// Para programas que chamam esta ferramenta sem console: no Windows,
+    /// sem console não chega Ctrl+C. Quem usa liga um pipe na entrada e o
+    /// fecha para cancelar.
+    #[arg(long)]
+    pub cancelar_pela_entrada: bool,
 }
 
 #[derive(Debug, Clone, Copy, ValueEnum)]
@@ -122,6 +130,14 @@ pub struct ArgsInfo {
     /// programa (ex: um script).
     #[arg(long, default_value_t = false)]
     pub json: bool,
+
+    /// Cancela, apagando o que criou, quando a entrada padrão fecha.
+    ///
+    /// Para programas que chamam esta ferramenta sem console: no Windows,
+    /// sem console não chega Ctrl+C. Quem usa liga um pipe na entrada e o
+    /// fecha para cancelar.
+    #[arg(long)]
+    pub cancelar_pela_entrada: bool,
 }
 
 #[derive(Debug, Clone, Copy, ValueEnum)]

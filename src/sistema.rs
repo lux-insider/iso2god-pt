@@ -155,6 +155,40 @@ pub fn instalar_cancelamento() {
 #[cfg(not(any(unix, windows)))]
 pub fn instalar_cancelamento() {}
 
+/// `--cancelar-pela-entrada`: o programa que chamou esta ferramenta fecha a
+/// entrada padrão dela para pedir o cancelamento, que segue o mesmo caminho
+/// limpo do Ctrl+C (para no próximo ponto seguro e apaga o que criou).
+///
+/// Serve para quem chama sem console: no Windows, um programa com janela
+/// não tem como mandar Ctrl+C, e encerrar o processo à força
+/// (`TerminateProcess`) não deixa a limpeza acontecer. Fechar o pipe
+/// funciona igual no Windows e no Linux, e também quando quem chamou morre
+/// de repente (o sistema fecha o pipe por ele).
+///
+/// O que chegar pela entrada é descartado. Se não houver entrada nenhuma
+/// para ler (erro logo na leitura), nada é cancelado: a opção só vale
+/// quando quem chamou ligou um pipe na entrada.
+pub fn cancelar_quando_entrada_fechar() {
+    use std::io::{ErrorKind, Read};
+    let _ = std::thread::Builder::new()
+        .name("cancelar-pela-entrada".into())
+        .spawn(|| {
+            let mut entrada = std::io::stdin().lock();
+            let mut lixo = [0u8; 256];
+            loop {
+                match entrada.read(&mut lixo) {
+                    Ok(0) => {
+                        CANCELADO.store(true, Ordering::SeqCst);
+                        return;
+                    }
+                    Ok(_) => {}
+                    Err(e) if e.kind() == ErrorKind::Interrupted => {}
+                    Err(_) => return,
+                }
+            }
+        });
+}
+
 /// Espaço livre, em bytes, disponível para um usuário comum no sistema de
 /// arquivos que contém `caminho`. Sobe pelos diretórios-pai até achar um que
 /// exista (o destino normalmente ainda não foi criado quando perguntamos).

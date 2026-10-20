@@ -59,7 +59,7 @@ pub const TAMANHO_ID: usize = 4;
 pub fn validar_id(rotulo: &str, hex: &str) -> Resultado<()> {
     let bytes = hex_para_bytes(hex)?;
     if bytes.len() != TAMANHO_ID {
-        return Err(Erro::IsoInvalida(format!(
+        return Err(Erro::DadoDoJogo(format!(
             "{rotulo} precisa ter exatamente {} dígitos hexadecimais (4 bytes); recebi {hex:?}",
             TAMANHO_ID * 2
         )));
@@ -315,12 +315,12 @@ impl EscritorCabecalho {
 /// pasta).
 fn hex_para_bytes(hex: &str) -> Resultado<Vec<u8>> {
     if !hex.bytes().all(|b| b.is_ascii_hexdigit()) {
-        return Err(Erro::IsoInvalida(format!(
+        return Err(Erro::DadoDoJogo(format!(
             "string hexadecimal inválida: {hex:?}"
         )));
     }
     if !hex.len().is_multiple_of(2) {
-        return Err(Erro::IsoInvalida(format!(
+        return Err(Erro::DadoDoJogo(format!(
             "string hexadecimal com tamanho ímpar: {hex:?}"
         )));
     }

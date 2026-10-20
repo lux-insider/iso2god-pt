@@ -42,7 +42,7 @@ fn u64_be(d: &[u8], p: usize) -> Option<u64> {
 }
 
 fn invalido(o_que: &str) -> Erro {
-    Erro::IsoInvalida(format!("XDBF do jogo: {o_que}"))
+    Erro::ExecutavelInvalido(format!("XDBF do jogo: {o_que}"))
 }
 
 /// Lê o nome (no idioma padrão do jogo, ou em inglês) e o ícone.

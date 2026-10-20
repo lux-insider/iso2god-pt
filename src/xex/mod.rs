@@ -65,7 +65,7 @@ impl InfoExecucao {
 /// `catch (EndOfStreamException)` do original.
 pub fn ler_info_execucao(xex: &[u8]) -> Resultado<InfoExecucao> {
     if xex.len() < 24 || &xex[0..4] != ASSINATURA_XEX2 {
-        return Err(Erro::IsoInvalida(
+        return Err(Erro::ExecutavelInvalido(
             "arquivo não começa com a assinatura XEX2 esperada".into(),
         ));
     }
@@ -86,7 +86,7 @@ pub fn ler_info_execucao(xex: &[u8]) -> Resultado<InfoExecucao> {
         }
     }
 
-    Err(Erro::IsoInvalida(
+    Err(Erro::ExecutavelInvalido(
         "o XEX não contém um bloco ExecutionInfo (Title ID/Media ID indisponíveis)".into(),
     ))
 }
@@ -95,10 +95,10 @@ fn ler_execution_info(xex: &[u8], endereco: usize) -> Resultado<InfoExecucao> {
     let fim = endereco
         .checked_add(TAMANHO_EXECUTION_INFO)
         .ok_or_else(|| {
-            Erro::IsoInvalida("endereço do bloco ExecutionInfo do XEX é inválido".into())
+            Erro::ExecutavelInvalido("endereço do bloco ExecutionInfo do XEX é inválido".into())
         })?;
     if fim > xex.len() {
-        return Err(Erro::IsoInvalida(
+        return Err(Erro::ExecutavelInvalido(
             "o bloco ExecutionInfo do XEX aponta além do fim do arquivo".into(),
         ));
     }

@@ -55,7 +55,7 @@ fn u32_be(d: &[u8], pos: usize) -> Option<u32> {
 }
 
 fn corrompido(o_que: &str) -> Erro {
-    Erro::IsoInvalida(format!("default.xex: {o_que}"))
+    Erro::ExecutavelInvalido(format!("default.xex: {o_que}"))
 }
 
 /// Tabela de cabeçalhos opcionais: (chave, valor).

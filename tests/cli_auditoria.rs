@@ -449,3 +449,153 @@ fn l_dependencias_removidas() {
     assert!(!dependencias.contains("terminal_size"), "L-1");
     assert!(!dependencias.contains("base64"), "L-2");
 }
+
+/// ISO Xsf com um `default.xex` que não é um XEX (sem a assinatura XEX2).
+fn iso_com_xex_quebrado(pasta: &Path) -> PathBuf {
+    let xex = vec![0x41u8; 0x400];
+    let mut raiz = vec![0xFFu8; S as usize];
+    raiz[0..4].copy_from_slice(&[0, 0, 0, 0]);
+    raiz[4..8].copy_from_slice(&40u32.to_le_bytes());
+    raiz[8..12].copy_from_slice(&(xex.len() as u32).to_le_bytes());
+    raiz[12] = 0;
+    raiz[13] = 11;
+    raiz[14..25].copy_from_slice(b"default.xex");
+    let caminho = pasta.join("xex.iso");
+    let mut f = File::create(&caminho).unwrap();
+    f.set_len(60 * S).unwrap();
+    let mut d = vec![0u8; S as usize];
+    d[0..20].copy_from_slice(b"MICROSOFT*XBOX*MEDIA");
+    d[20..24].copy_from_slice(&33u32.to_le_bytes());
+    d[24..28].copy_from_slice(&(S as u32).to_le_bytes());
+    f.seek(SeekFrom::Start(32 * S)).unwrap();
+    f.write_all(&d).unwrap();
+    f.write_all(&raiz).unwrap();
+    f.seek(SeekFrom::Start(40 * S)).unwrap();
+    f.write_all(&xex).unwrap();
+    caminho
+}
+
+/// X-1: com `--progresso-json`, o aviso de XEX ilegível vem como evento
+/// (antes era texto solto em stderr); o erro final diz que o problema é o
+/// executável, não "imagem ISO inválida"; e o `info` explica por que não há
+/// Title ID.
+#[test]
+fn x1_xex_quebrado_explica_o_motivo() {
+    let t = Temp::nova("x1");
+    let iso = iso_com_xex_quebrado(&t.0);
+
+    let saida = Command::new(EXE)
+        .arg("converter")
+        .arg(&iso)
+        .arg(t.0.join("destino"))
+        .arg("--progresso-json")
+        .output()
+        .unwrap();
+    assert_eq!(saida.status.code(), Some(1));
+    assert!(saida.stderr.is_empty(), "{}", String::from_utf8_lossy(&saida.stderr));
+    let eventos: Vec<serde_json::Value> = String::from_utf8(saida.stdout)
+        .unwrap()
+        .lines()
+        .map(|l| serde_json::from_str(l).unwrap())
+        .collect();
+    assert!(
+        eventos.iter().any(|e| e["evento"] == "fase"
+            && e["fase"] == "aviso"
+            && e["mensagem"].as_str().unwrap().contains("default.xex")),
+        "{eventos:?}"
+    );
+    let erro = eventos.last().unwrap();
+    assert_eq!(erro["evento"], "erro");
+    let mensagem = erro["mensagem"].as_str().unwrap();
+    assert!(!mensagem.contains("imagem ISO inválida"), "{mensagem}");
+    assert!(mensagem.contains("default.xex: ") && mensagem.contains("--title-id"), "{mensagem}");
+
+    let json = Command::new(EXE).arg("info").arg(&iso).arg("--json").output().unwrap();
+    assert_eq!(json.status.code(), Some(0));
+    let v: serde_json::Value = serde_json::from_slice(&json.stdout).unwrap();
+    assert!(v["title_id"].is_null());
+    assert!(v["motivo_sem_metadados"].as_str().unwrap().contains("default.xex"), "{v}");
+
+    let texto = Command::new(EXE).arg("info").arg(&iso).output().unwrap();
+    let texto = String::from_utf8(texto.stdout).unwrap() + &String::from_utf8(texto.stderr).unwrap();
+    assert!(texto.contains("Title ID e Media ID não lidos"), "{texto}");
+
+    // uma imagem boa continua sem o campo novo no JSON
+    let boa = iso_com_xbe(&t.0, "Jogo");
+    let json = Command::new(EXE).arg("info").arg(&boa).arg("--json").output().unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&json.stdout).unwrap();
+    assert!(v.get("motivo_sem_metadados").is_none(), "{v}");
+}
+
+/// C-2: com `--cancelar-pela-entrada`, fechar a entrada no meio da
+/// conversão cancela como o Ctrl+C: apaga a saída e sai com 130. É o
+/// caminho de quem chama sem console (no Windows não chega Ctrl+C).
+#[test]
+fn c2_fechar_a_entrada_cancela_e_limpa() {
+    let t = Temp::nova("c2");
+    let iso = iso_grande(&t.0, 2048);
+    let destino = t.0.join("destino");
+    let mut filho = converter(&iso, &destino)
+        .arg("--cancelar-pela-entrada")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()
+        .unwrap();
+    let mut leitor = BufReader::new(filho.stdout.take().unwrap());
+    let mut linha = String::new();
+    while leitor.read_line(&mut linha).unwrap() > 0 {
+        if linha.contains("\"progresso\"") {
+            break;
+        }
+        linha.clear();
+    }
+    std::thread::spawn(move || std::io::copy(&mut leitor, &mut std::io::sink()));
+    drop(filho.stdin.take());
+    let status = filho.wait().unwrap();
+    assert_eq!(status.code(), Some(130), "{status:?}");
+    assert!(
+        arquivos(&destino).is_empty(),
+        "sobrou saída: {:?}",
+        arquivos(&destino).iter().map(|a| &a.0).collect::<Vec<_>>()
+    );
+}
+
+/// C-2: com a entrada aberta, a opção não atrapalha a conversão.
+#[test]
+fn c2_entrada_aberta_nao_cancela() {
+    let t = Temp::nova("c2-aberta");
+    let iso = iso_grande(&t.0, 16);
+    let destino = t.0.join("destino");
+    let mut filho = converter(&iso, &destino)
+        .arg("--cancelar-pela-entrada")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .unwrap();
+    // `wait` fecharia a entrada antes de esperar: fica guardada até o fim
+    let entrada = filho.stdin.take();
+    let status = filho.wait().unwrap();
+    drop(entrada);
+    assert_eq!(status.code(), Some(0), "{status:?}");
+    assert!(!arquivos(&destino).is_empty());
+}
+
+/// U-1: ajuda e erros de uso em português; erro de uso sai com 1.
+#[test]
+fn u1_ajuda_e_erros_de_uso_em_portugues() {
+    let ajuda = Command::new(EXE).args(["converter", "--help"]).output().unwrap();
+    assert_eq!(ajuda.status.code(), Some(0));
+    let texto = String::from_utf8(ajuda.stdout).unwrap();
+    for trecho in ["Uso: iso2god converter [OPÇÕES] <ORIGEM> <DESTINO>", "Argumentos:", "Opções:", "Mostra a ajuda", "--cancelar-pela-entrada"] {
+        assert!(texto.contains(trecho), "falta {trecho:?}: {texto}");
+    }
+    assert!(!texto.contains("Usage") && !texto.contains("Print help"), "{texto}");
+
+    let erro = Command::new(EXE).args(["converter", "--xyz"]).output().unwrap();
+    assert_eq!(erro.status.code(), Some(1));
+    let texto = String::from_utf8(erro.stderr).unwrap();
+    assert!(texto.starts_with("erro: argumento inesperado '--xyz'"), "{texto}");
+    assert!(texto.contains("Para mais informações, use '--help'."), "{texto}");
+}

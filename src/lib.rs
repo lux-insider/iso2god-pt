@@ -44,6 +44,7 @@ pub mod limpeza;
 pub mod progresso;
 pub mod sistema;
 pub mod terminal;
+pub mod uso;
 pub mod xbe;
 pub mod xex;
 

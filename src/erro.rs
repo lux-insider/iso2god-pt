@@ -55,6 +55,16 @@ pub enum Erro {
     #[error("imagem ISO inválida: {0}")]
     IsoInvalida(String),
 
+    /// O default.xex ou default.xbe não pôde ser interpretado. A imagem em
+    /// si pode estar perfeita: o problema é o executável do jogo.
+    #[error("{0}")]
+    ExecutavelInvalido(String),
+
+    /// Um dado do jogo que não deu para descobrir sozinho, ou que veio
+    /// errado pela linha de comando (ícone, Title ID...).
+    #[error("{0}")]
+    DadoDoJogo(String),
+
     #[error("estrutura GDF não encontrada ou corrompida")]
     GdfNaoEncontrada,
 

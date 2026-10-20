@@ -800,13 +800,13 @@ fn linha_de_comando_progresso_json_info_e_codigos_de_saida() {
     assert_eq!(v["evento"], "erro");
     assert!(v["mensagem"].as_str().is_some_and(|m| !m.is_empty()));
 
-    // opção inválida: código 2 (o do clap)
+    // opção inválida: código 1, como os outros erros (o clap usaria 2)
     let uso = Command::new(exe)
         .arg("converter")
         .arg("--nao-existe")
         .output()
         .unwrap();
-    assert_eq!(uso.status.code(), Some(2));
+    assert_eq!(uso.status.code(), Some(1));
 }
 
 /// `--padding completa` em imagens só com nomes ASCII. A reconstrução

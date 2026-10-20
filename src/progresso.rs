@@ -68,6 +68,20 @@ pub fn relatar_erro_final(mensagem: &str, json: bool) {
     }
 }
 
+/// Aviso que não para nada, antes de haver um `Reporter`: no JSON, um
+/// evento `fase` "aviso" (o mesmo de `Reporter::aviso`); fora dele, a linha
+/// "aviso: ..." em stderr de sempre.
+pub fn avisar(mensagem: &str, json: bool) {
+    if json {
+        emitir(&EventoProgresso::Fase {
+            fase: "aviso",
+            mensagem: mensagem.to_string(),
+        });
+    } else {
+        saida_erro!("aviso: {mensagem}");
+    }
+}
+
 /// Anuncia uma fase sem precisar de um `Reporter` já construído (usado
 /// antes de sabermos quantos blocos serão convertidos, ex: durante a
 /// reconstrução da GDF em `--padding completa`).
