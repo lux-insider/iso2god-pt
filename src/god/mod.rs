@@ -136,9 +136,9 @@ fn resolver_metadados(opcoes: &OpcoesConversao, gdf: &mut Gdf) -> Resultado<Meta
         .clone()
         .or(detectado.title_id_hex)
         .ok_or_else(|| {
-            Erro::DadoDoJogo(
-                format!("não foi possível determinar o Title ID automaticamente{motivo}; informe --title-id"),
-            )
+            Erro::DadoDoJogo(format!(
+                "não foi possível determinar o Title ID automaticamente{motivo}; informe --title-id"
+            ))
         })?;
 
     let media_id = opcoes
@@ -146,9 +146,9 @@ fn resolver_metadados(opcoes: &OpcoesConversao, gdf: &mut Gdf) -> Resultado<Meta
         .clone()
         .or(detectado.media_id_hex)
         .ok_or_else(|| {
-            Erro::DadoDoJogo(
-                format!("não foi possível determinar o Media ID automaticamente{motivo}; informe --media-id"),
-            )
+            Erro::DadoDoJogo(format!(
+                "não foi possível determinar o Media ID automaticamente{motivo}; informe --media-id"
+            ))
         })?;
 
     // Validados agora, não na gravação do cabeçalho (que é a última etapa):
@@ -371,7 +371,10 @@ fn detectar_do_xbe(gdf: &mut Gdf, json: bool) -> MetadadosDetectados {
         }
         Ok(png) => Some(png),
         Err(e) => {
-            aviso!(json, "não foi possível extrair o thumbnail do default.xbe: {e}");
+            aviso!(
+                json,
+                "não foi possível extrair o thumbnail do default.xbe: {e}"
+            );
             None
         }
     };

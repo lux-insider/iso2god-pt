@@ -153,10 +153,9 @@ fn encontrar_secao_thumbnail(xbe: &[u8]) -> Resultado<&[u8]> {
     let base_address = ler_u32_le(xbe, OFF_BASE_ADDRESS);
     let num_secoes = ler_u32_le(xbe, OFF_NUMBER_OF_SECTIONS);
     let secoes_address = ler_u32_le(xbe, OFF_SECTION_HEADERS_ADDRESS);
-    let offset_secoes = secoes_address
-        .checked_sub(base_address)
-        .ok_or_else(|| Erro::ExecutavelInvalido("endereço da tabela de seções do XBE é inválido".into()))?
-        as usize;
+    let offset_secoes = secoes_address.checked_sub(base_address).ok_or_else(|| {
+        Erro::ExecutavelInvalido("endereço da tabela de seções do XBE é inválido".into())
+    })? as usize;
 
     for nome_procurado in NOMES_SECAO_THUMBNAIL {
         for indice in 0..num_secoes {
