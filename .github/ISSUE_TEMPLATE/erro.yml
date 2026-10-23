@@ -1,0 +1,69 @@
+name: Relatar um erro
+description: Algo não funcionou como deveria.
+title: "[Erro] "
+labels: ["erro"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Obrigado por avisar! Antes de abrir, confira se o erro acontece na
+        [versão mais recente](../releases/latest).
+
+  - type: input
+    id: versao
+    attributes:
+      label: Versão
+      description: Está no título da janela, no LEIA-ME ou no nome do arquivo baixado.
+      placeholder: "ex.: 1.0.0"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: sistema
+    attributes:
+      label: Sistema
+      options:
+        - Windows 11
+        - Windows 10
+        - Linux
+    validations:
+      required: true
+
+  - type: input
+    id: comando
+    attributes:
+      label: Comando ou opção usada
+      placeholder: "ex.: Converter para GOD, ou o comando completo no terminal"
+
+  - type: textarea
+    id: aconteceu
+    attributes:
+      label: O que aconteceu
+      description: Descreva o erro e a mensagem que apareceu, se houver.
+    validations:
+      required: true
+  - type: textarea
+    id: passos
+    attributes:
+      label: Como repetir
+      placeholder: |
+        1. ...
+        2. ...
+        3. ...
+  - type: textarea
+    id: esperado
+    attributes:
+      label: O que você esperava
+
+  - type: textarea
+    id: saida
+    attributes:
+      label: Saída do programa
+      description: Copie o que apareceu no terminal (ou o log), se houver.
+      render: text
+
+  - type: textarea
+    id: anexos
+    attributes:
+      label: Prints e arquivos
+      description: "Prints ajudam muito."

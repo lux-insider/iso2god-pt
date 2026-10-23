@@ -574,7 +574,7 @@ fn xbox360_xex_basica_padding_parcial_nenhuma_e_completa() {
         "4D5308BF/\n4D5308BF/00007000/\n4D5308BF/00007000/FE40C7D9CF2D599EB911 45056 37c25a4ce703ba8630d2d27d2ae6b88e7144f748\n4D5308BF/00007000/FE40C7D9CF2D599EB911.data/\n4D5308BF/00007000/FE40C7D9CF2D599EB911.data/Data0000 1241088 62756344f0041c3da3251746b7d71624d24bf162",
     );
 
-    // Mudou de propósito com a correção do N-1 (AUDITORIA.md): a imagem tem
+    // Mudou de propósito com a correção do N-1 (docs/AUDITORIA.md): a imagem tem
     // "Canção.ogg" em Latin-1, que a 0.1.4 gravava como "Can??o.ogg" na GDF
     // reconstruída. Agora o nome sai com os bytes do disco (E7 E3 no lugar
     // de 3F 3F); o resto da parte só muda nos hashes que cobrem esse bloco.

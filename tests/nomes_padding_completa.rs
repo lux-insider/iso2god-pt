@@ -1,5 +1,5 @@
 //! Nomes de arquivo no `--padding completa` (itens N-1 e N-2 do
-//! AUDITORIA.md).
+//! docs/AUDITORIA.md).
 //!
 //! A reconstrução regrava as tabelas de diretório numa GDF nova, que vai
 //! inteira para dentro do pacote. Os testes convertem uma imagem, tiram a
