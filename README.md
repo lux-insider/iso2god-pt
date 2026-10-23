@@ -7,6 +7,8 @@
 ![Linux](https://img.shields.io/badge/Linux-FCC624?logo=linux&logoColor=black)
 ![Rust](https://img.shields.io/badge/feito%20em-Rust-orange)
 
+![iso2god-pt](docs/banner.png)
+
 Conversor de imagens ISO de **Xbox** e **Xbox 360** para pacotes **GOD**
 (Games on Demand), em **Rust** e em português. Tem um assistente
 interativo, conversão em lote, barra de progresso e uma saída em JSON para
