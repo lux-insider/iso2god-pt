@@ -1,4 +1,4 @@
-//! Testes dos achados do AUDITORIA.md: cada um monta o cenário do item e
+//! Testes dos achados do docs/AUDITORIA.md: cada um monta o cenário do item e
 //! falha no código de antes da correção.
 
 use std::fs::{self, File};

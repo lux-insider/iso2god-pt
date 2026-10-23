@@ -4,6 +4,7 @@
 [![Testes](https://github.com/lux-insider/iso2god-pt/actions/workflows/testes.yml/badge.svg)](https://github.com/lux-insider/iso2god-pt/actions/workflows/testes.yml)
 [![Licença: MIT](https://img.shields.io/badge/licen%C3%A7a-MIT-blue)](LICENSE)
 ![Plataformas](https://img.shields.io/badge/plataformas-Windows%20%7C%20Linux-informational)
+![Rust](https://img.shields.io/badge/feito%20em-Rust-orange)
 
 Conversor de imagens ISO de **Xbox** e **Xbox 360** para pacotes **GOD**
 (Games on Demand), em **Rust** e em português. Tem um assistente
@@ -29,6 +30,7 @@ do Iso2God original: nenhum código-fonte do projeto original foi copiado.
 - [Estrutura do projeto](#estrutura-do-projeto)
 - [Testes](#testes)
 - [Documentação](#documentação)
+- [Contribuir](#contribuir)
 - [Licença](#licença)
 
 ---
@@ -245,8 +247,17 @@ ferramentas/fuzz/         fuzzers de imagens corrompidas e XBEs forjados
 | Documento | Conteúdo |
 |---|---|
 | [CHANGELOG.md](CHANGELOG.md) | histórico de versões |
-| [AUDITORIA.md](AUDITORIA.md) | auditoria de segurança e confiabilidade, com cada achado e sua correção |
+| [AUDITORIA.md](docs/AUDITORIA.md) | auditoria de segurança e confiabilidade, com cada achado e sua correção |
 | [ferramentas/fuzz/README.md](ferramentas/fuzz/README.md) | como rodar os fuzzers |
+
+---
+
+## Contribuir
+
+Erros e ideias são bem-vindos nas [issues](https://github.com/lux-insider/iso2god-pt/issues/new/choose),
+com um modelo para cada caso. Para enviar código, veja o
+[CONTRIBUTING.md](CONTRIBUTING.md); para falhas de segurança, o
+[SECURITY.md](SECURITY.md).
 
 ---
 

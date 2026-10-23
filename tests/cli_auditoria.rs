@@ -1,4 +1,4 @@
-//! Testes do programa de verdade para os achados do AUDITORIA.md que só
+//! Testes do programa de verdade para os achados do docs/AUDITORIA.md que só
 //! aparecem fora da biblioteca: saída fechada, sinais, pânico.
 
 use std::fs::{self, File};
