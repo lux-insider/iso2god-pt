@@ -1,0 +1,36 @@
+iso2god-pt — LICENÇA DE USO (FREEWARE)
+
+Copyright (c) 2026 lux-insider. Todos os direitos reservados.
+
+Este programa é gratuito. O código-fonte não é distribuído.
+
+VOCÊ PODE
+  - baixar, instalar e usar o programa de graça, para uso pessoal;
+  - divulgar o link oficial de download:
+    https://github.com/lux-insider/iso2god-pt/releases
+
+VOCÊ NÃO PODE, sem autorização por escrito do autor
+  - vender, alugar ou cobrar de qualquer forma pelo programa, nem incluí-lo
+    em pacotes, coletâneas ou serviços pagos;
+  - publicar os arquivos do programa em outros sites ou servidores,
+    alterados ou não;
+  - modificar, descompilar, desmontar ou fazer engenharia reversa do
+    programa, exceto quando a lei do seu país permitir expressamente;
+  - remover ou alterar os avisos de autoria e esta licença.
+
+SEM GARANTIA
+  O PROGRAMA É FORNECIDO "COMO ESTÁ", SEM GARANTIA DE NENHUM TIPO, EXPRESSA
+  OU IMPLÍCITA. O AUTOR NÃO SE RESPONSABILIZA POR PERDA DE DADOS, SAVES OU
+  ARQUIVOS DANIFICADOS, DANOS AO CONSOLE OU AO COMPUTADOR, NEM POR QUALQUER
+  OUTRO PREJUÍZO DECORRENTE DO USO DO PROGRAMA. FAÇA BACKUP ANTES DE USAR.
+
+COMPONENTES DE TERCEIROS
+  O programa usa bibliotecas de código aberto da linguagem Rust, cada uma
+  sob a sua própria licença (MIT, Apache-2.0 e similares).
+
+MARCAS
+  Xbox e Xbox 360 são marcas da Microsoft. Projeto independente, gratuito e
+  sem fins lucrativos, sem ligação com a Microsoft.
+
+Versões publicadas antes de 27/10/2026 com a licença MIT continuam valendo
+nos termos da MIT para quem já as recebeu.
