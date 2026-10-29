@@ -16,6 +16,15 @@ As versões seguem o [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 
 ## 0.1.6 — 2026-10-20
 
+### Correções depois do lançamento
+As correções entram na própria versão (o download da release é atualizado).
+
+- **29/10 — Emojis, tamanhos e caminhos:** os emojis que alguns terminais
+  desenhavam com 1 coluna (⚠️, ⚙️, ⏱️...) desalinhavam as caixas; foram
+  trocados por emojis que todo terminal desenha com 2 colunas. Arquivos com
+  menos de 1 KiB aparecem em bytes ("5 B"). No assistente, uma pasta cujo
+  nome termina com espaço é encontrada mesmo sem digitar o espaço.
+
 ### Adicionado
 - **`--cancelar-pela-entrada`** (`converter` e `info`): fechar a entrada
   padrão cancela e apaga o pacote incompleto, como o Ctrl+C. Serve para
